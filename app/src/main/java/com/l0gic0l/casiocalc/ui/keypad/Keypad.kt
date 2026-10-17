@@ -1,7 +1,9 @@
 package com.l0gic0l.casiocalc.ui.keypad
 
 import android.view.HapticFeedbackConstants
+import android.view.SoundEffectConstants
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -11,11 +13,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,10 +61,12 @@ fun Keypad(
     shape: KeypadShape = KeypadShape.STACKED,
     haptics: Boolean = true,
     showHints: Boolean = true,
+    sound: Boolean = false,
 ) {
     val view = LocalView.current
     fun press(spec: KeySpec) {
         if (haptics) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+        if (sound) view.playSoundEffect(SoundEffectConstants.CLICK)
         val cmd = (spec.action as? KeyAction.Command)?.cmd
         if (cmd == Cmd.SHIFT) {
             state.shift = !state.shift
@@ -88,35 +94,56 @@ fun Keypad(
         onAction(action)
     }
 
-    @Composable
-    fun KeyRow(row: List<KeySpec>, rowModifier: Modifier) {
-        Row(rowModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (spec in row) Key(spec, state, showHints, Modifier.weight(1f).fillMaxHeight()) { press(spec) }
+    BoxWithConstraints(modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+        val rows = when (shape) {
+            KeypadShape.STACKED -> Keys.functionRows.size + Keys.numberRows.size
+            KeypadShape.WIDE -> maxOf(Keys.functionRows.size, Keys.numberRows.size)
         }
-    }
+        // SHIFT labels go above the keys, as on the calculator, unless that would leave the keys
+        // too short; then they sit inside the top of each key.
+        val hints = when {
+            !showHints -> Hints.NONE
+            (maxHeight - 2.dp * (rows - 1)) / rows - HintHeight >= 40.dp -> Hints.ABOVE
+            else -> Hints.INSIDE
+        }
+        // Labels above the keys already separate the rows.
+        val gap = if (hints == Hints.ABOVE) 2.dp else 6.dp
 
-    val gap = 6.dp
-    when (shape) {
-        KeypadShape.STACKED -> Column(modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(gap)) {
-            for (row in Keys.functionRows) KeyRow(row, Modifier.weight(0.85f))
-            for (row in Keys.numberRows) KeyRow(row, Modifier.weight(1f))
-        }
-        KeypadShape.WIDE -> Row(modifier.padding(horizontal = 6.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Column(Modifier.weight(6f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
-                for (row in Keys.functionRows) KeyRow(row, Modifier.weight(1f))
+        @Composable
+        fun KeyRow(row: List<KeySpec>, rowModifier: Modifier) {
+            Row(rowModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (spec in row) Key(spec, state, hints, Modifier.weight(1f).fillMaxHeight()) { press(spec) }
             }
-            Column(Modifier.weight(5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
+        }
+
+        when (shape) {
+            KeypadShape.STACKED -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(gap)) {
+                for (row in Keys.functionRows) KeyRow(row, Modifier.weight(0.85f))
                 for (row in Keys.numberRows) KeyRow(row, Modifier.weight(1f))
+            }
+            KeypadShape.WIDE -> Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(Modifier.weight(6f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    for (row in Keys.functionRows) KeyRow(row, Modifier.weight(1f))
+                }
+                Column(Modifier.weight(5f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(gap)) {
+                    for (row in Keys.numberRows) KeyRow(row, Modifier.weight(1f))
+                }
             }
         }
     }
 }
 
+/** Where a key's SHIFT function is printed. */
+private enum class Hints { NONE, ABOVE, INSIDE }
+
 /** What a key currently shows: its own label, its SHIFT function or its ALPHA letter. */
 private enum class Face { MAIN, SHIFT, ALPHA }
 
+/** Height of the SHIFT label printed above each key, as on the calculator's case. */
+private val HintHeight = 14.dp
+
 @Composable
-private fun Key(spec: KeySpec, state: InputState, showHints: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun Key(spec: KeySpec, state: InputState, hints: Hints, modifier: Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val labels = LocalKeyLabelColors.current
     val shiftOn = state.shift
@@ -126,10 +153,10 @@ private fun Key(spec: KeySpec, state: InputState, showHints: Boolean, modifier: 
         KeyStyle.ALPHA -> alphaOn
         else -> false
     }
-    val (container, content) = when (spec.style) {
+    val (containerTarget, contentTarget) = when (spec.style) {
         KeyStyle.NUMBER -> scheme.surfaceContainerHighest to scheme.onSurface
         KeyStyle.FUNCTION -> scheme.surfaceContainerHigh to scheme.onSurface
-        KeyStyle.NAV -> scheme.surfaceContainer to scheme.onSurfaceVariant
+        KeyStyle.NAV -> scheme.primaryContainer to scheme.onPrimaryContainer
         KeyStyle.OPERATOR -> scheme.secondaryContainer to scheme.onSecondaryContainer
         KeyStyle.DELETE -> scheme.tertiaryContainer to scheme.onTertiaryContainer
         KeyStyle.CLEAR -> scheme.errorContainer to scheme.onErrorContainer
@@ -137,6 +164,8 @@ private fun Key(spec: KeySpec, state: InputState, showHints: Boolean, modifier: 
         KeyStyle.SHIFT -> if (active) labels.shift to scheme.surface else scheme.surfaceContainerHigh to labels.shift
         KeyStyle.ALPHA -> if (active) labels.alpha to scheme.surface else scheme.surfaceContainerHigh to labels.alpha
     }
+    val container by animateColorAsState(containerTarget, tween(180), label = "keyContainer")
+    val content by animateColorAsState(contentTarget, tween(180), label = "keyContent")
     // While a modifier is on, the key shows what it will do.
     val face = when {
         shiftOn && spec.shift != null && spec.style != KeyStyle.ALPHA -> Face.SHIFT
@@ -157,39 +186,58 @@ private fun Key(spec: KeySpec, state: InputState, showHints: Boolean, modifier: 
     val corner by animateDpAsState(if (pressed) 28.dp else 16.dp, tween(120), label = "keyCorner")
     val contentAlpha by animateFloatAsState(if (dimmed) 0.4f else 1f, label = "keyDim")
 
-    Surface(
-        onClick = onClick,
-        modifier = modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        },
-        shape = RoundedCornerShape(corner),
-        color = container,
-        contentColor = content,
-        interactionSource = interaction,
-    ) {
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha }) {
-            val hint = spec.shiftLabel
-            if (showHints && face == Face.MAIN && hint != null && spec.style != KeyStyle.SHIFT) {
-                Text(
-                    hint,
-                    color = if (spec.style == KeyStyle.EXE) content.copy(alpha = 0.8f) else labels.shift,
-                    fontSize = 9.sp,
-                    lineHeight = 10.sp,
-                    maxLines = 1,
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 7.dp, top = 2.dp),
-                )
+    // The hint fades while SHIFT is on, because the key face then shows the same function.
+    val hintAlpha by animateFloatAsState(if (face == Face.MAIN) 1f else 0f, tween(140), label = "keyHint")
+    val hint = spec.shiftLabel?.takeIf { spec.style != KeyStyle.SHIFT }
+
+    @Composable
+    fun Hint(color: Color, size: Int, modifier: Modifier) {
+        Box(modifier.graphicsLayer { alpha = hintAlpha }, contentAlignment = Alignment.Center) {
+            if (hint != null) {
+                Text(hint, color = color, fontSize = size.sp, lineHeight = (size + 2).sp, fontWeight = FontWeight.Medium, maxLines = 1, softWrap = false)
             }
-            Crossfade(face, Modifier.align(Alignment.Center), animationSpec = tween(140), label = "keyFace") { f ->
-                Box(Modifier.padding(top = if (f == Face.MAIN && showHints && hint != null) 6.dp else 0.dp)) {
-                    when (f) {
-                        Face.SHIFT -> if (spec.shiftMath != null) KeyMath(spec.shiftMath, labels.shift)
-                        else KeyText(spec.shiftLabel ?: "", if (spec.style == KeyStyle.EXE) content else labels.shift, spec.style)
-                        Face.ALPHA -> KeyText(spec.alphaLabel ?: "", labels.alpha, spec.style)
-                        Face.MAIN -> when (val l = spec.label) {
-                            is KeyLabel.Math -> KeyMath(l.row, LocalContentColor.current)
-                            is KeyLabel.Text -> KeyText(l.text, LocalContentColor.current, spec.style)
-                            is KeyLabel.Icon -> KeyIcon(l)
+        }
+    }
+
+    Column(modifier) {
+        if (hints == Hints.ABOVE) Hint(labels.shift, 10, Modifier.fillMaxWidth().height(HintHeight))
+        Surface(
+            onClick = onClick,
+            modifier = Modifier.weight(1f).fillMaxWidth().graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+            shape = RoundedCornerShape(corner),
+            color = container,
+            contentColor = content,
+            interactionSource = interaction,
+        ) {
+            // Surface stretches its children to fill it, so the hint and face get their own box.
+            Box(Modifier.fillMaxSize()) {
+                if (hints == Hints.INSIDE) {
+                    Hint(
+                        if (spec.style == KeyStyle.EXE) content.copy(alpha = 0.8f) else labels.shift,
+                        9,
+                        Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = 3.dp).height(11.dp),
+                    )
+                }
+                // Every face fills the same area and is centred in it, so swapping faces never moves the label.
+                Crossfade(
+                    face,
+                    Modifier.fillMaxSize().padding(top = if (hints == Hints.INSIDE) 12.dp else 0.dp).graphicsLayer { alpha = contentAlpha },
+                    animationSpec = tween(160),
+                    label = "keyFace",
+                ) { f ->
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        when (f) {
+                            Face.SHIFT -> if (spec.shiftMath != null) KeyMath(spec.shiftMath, labels.shift)
+                            else KeyText(spec.shiftLabel ?: "", if (spec.style == KeyStyle.EXE) content else labels.shift, spec.style)
+                            Face.ALPHA -> KeyText(spec.alphaLabel ?: "", labels.alpha, spec.style)
+                            Face.MAIN -> when (val l = spec.label) {
+                                is KeyLabel.Math -> KeyMath(l.row, LocalContentColor.current)
+                                is KeyLabel.Text -> KeyText(l.text, LocalContentColor.current, spec.style)
+                                is KeyLabel.Icon -> KeyIcon(l)
+                            }
                         }
                     }
                 }
@@ -201,7 +249,6 @@ private fun Key(spec: KeySpec, state: InputState, showHints: Boolean, modifier: 
 @Composable
 private fun KeyText(text: String, color: Color, style: KeyStyle) {
     val size = when {
-        style == KeyStyle.EXE && text == "=" -> 30.sp
         style == KeyStyle.NUMBER && text.length == 1 -> 24.sp
         style == KeyStyle.OPERATOR && text.length == 1 -> 24.sp
         text.length >= 5 -> 12.sp
@@ -227,7 +274,12 @@ private fun KeyIcon(label: KeyLabel.Icon) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.semantics { contentDescription = label.description },
     ) {
-        Icon(label.image, contentDescription = null, modifier = Modifier.size(if (label.caption == null) 24.dp else 18.dp))
+        val tint = when (label.accent) {
+            KeyAccent.NONE -> LocalContentColor.current
+            KeyAccent.PRIMARY -> MaterialTheme.colorScheme.primary
+            KeyAccent.TERTIARY -> MaterialTheme.colorScheme.tertiary
+        }
+        Icon(label.image, contentDescription = null, tint = tint, modifier = Modifier.size(if (label.caption == null) 24.dp else 18.dp))
         if (label.caption != null) Text(label.caption, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
     }
 }

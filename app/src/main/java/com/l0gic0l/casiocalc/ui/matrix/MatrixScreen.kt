@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -120,7 +121,7 @@ private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
     val cols = m?.cols ?: 2
     val session = remember(letter) { EditSession<Int>() }
     var error by remember { mutableStateOf<String?>(null) }
-    val input = remember(letter, session.shown) {
+    val input = remember(letter, session.opened) {
         InputState(session.shown?.let { i -> m?.cells?.getOrNull(i)?.let { formatter.format(Value.Num(it)) } } ?: MathRow())
     }
 
@@ -130,11 +131,20 @@ private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
         session.close()
     }
 
+    // Deleting the matrix closes the editor, so it never writes into a matrix that is gone.
+    LaunchedEffect(m == null) { if (m == null) session.close() }
+
     fun commit(index: Int) {
+        // EXE pressed while the editor is already animating away does nothing.
+        if (session.current != index) return
         val result = vm.evaluateCell(input.row)
         val v = result.getOrNull()
         if (v is Value.Num) {
             val current = vm.memory.getMatrix(letter) ?: Value.Mat.build(rows, cols) { _, _ -> Complex.ZERO }
+            if (index !in current.cells.indices) {
+                session.close()
+                return
+            }
             val cells = current.cells.toMutableList()
             cells[index] = v.z
             vm.memory.setMatrix(letter, Value.Mat(current.rows, current.cols, cells))
@@ -196,6 +206,7 @@ private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
                     shape = shape,
                     modifier = editorModifier,
                     onCancel = { session.close() },
+                    active = session.current != null,
                     onDone = { commit(index) },
                 )
             }

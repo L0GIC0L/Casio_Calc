@@ -9,7 +9,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -46,13 +51,17 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.unit.dp
@@ -63,16 +72,18 @@ import com.l0gic0l.casiocalc.math.format.RowText
 import com.l0gic0l.casiocalc.ui.CalcViewModel
 import com.l0gic0l.casiocalc.ui.adaptive.CalcScreenLayout
 import com.l0gic0l.casiocalc.ui.adaptive.Fold
-import com.l0gic0l.casiocalc.ui.adaptive.rememberFold
+import com.l0gic0l.casiocalc.ui.adaptive.currentFold
 import com.l0gic0l.casiocalc.ui.components.CalcKeypad
 import com.l0gic0l.casiocalc.ui.components.StatusLine
+import com.l0gic0l.casiocalc.ui.effects.ParticleField
+import com.l0gic0l.casiocalc.ui.effects.rememberParticleState
 import com.l0gic0l.casiocalc.ui.math.MathInputField
 import com.l0gic0l.casiocalc.ui.math.ScrollingMath
 import com.l0gic0l.casiocalc.ui.math.defaultMathColors
 import kotlinx.coroutines.launch
 
 @Composable
-fun RunScreen(vm: CalcViewModel, onBack: () -> Unit, onSettings: () -> Unit, fold: Fold = rememberFold()) {
+fun RunScreen(vm: CalcViewModel, onBack: () -> Unit, onSettings: () -> Unit, fold: Fold = currentFold()) {
     Scaffold(contentWindowInsets = WindowInsets.safeDrawing) { padding ->
         CalcScreenLayout(
             modifier = Modifier.padding(padding),
@@ -104,7 +115,6 @@ private fun Display(vm: CalcViewModel, onBack: () -> Unit, onSettings: () -> Uni
         Column {
             StatusLine(
                 vm,
-                vm.runInput,
                 leading = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Main menu") }
                 },
@@ -143,42 +153,70 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
     val listState = rememberLazyListState()
     val history = vm.history
     val formatter = vm.formatter()
+    val scale = vm.prefs.displaySize.factor
+    val particles = rememberParticleState(seed = 11)
+    val density = LocalDensity.current.density
     // The list is anchored at the bottom; bring the input line back into view when typing.
     LaunchedEffect(vm.runInput.revision, history.size) {
         if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
             listState.animateScrollToItem(0)
         }
     }
-    LazyColumn(modifier.fillMaxWidth(), state = listState, reverseLayout = true) {
-        item(key = "input") {
-            Column(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
-                MathInputField(vm.runInput, Modifier.fillMaxWidth(), fontSize = 30.sp)
-                AnimatedVisibility(vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("  Calculating…  AC to stop", style = MaterialTheme.typography.bodySmall)
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        // Short displays (phone landscape) put each calculation on one line so the answer fits.
+        val compact = maxHeight < 200.dp
+        val width = constraints.maxWidth.toFloat()
+        val height = constraints.maxHeight.toFloat()
+        // A new answer arrives with a small shower of sparks.
+        var seen by remember { mutableIntStateOf(history.size) }
+        LaunchedEffect(history.size) {
+            if (history.size > seen && vm.prefs.showParticles) {
+                // Roughly where the newest answer lands: just above the input line, at the right.
+                particles.burst(width * 0.8f, (height - (if (compact) 70f else 110f) * density).coerceAtLeast(height * 0.3f), 28, density)
+            }
+            seen = history.size
+        }
+        LazyColumn(Modifier.fillMaxSize(), state = listState, reverseLayout = true) {
+            item(key = "input") {
+                Column(Modifier.fillMaxWidth().heightIn(min = if (compact) 52.dp else 72.dp).padding(horizontal = 16.dp, vertical = if (compact) 4.dp else 8.dp)) {
+                    MathInputField(vm.runInput, Modifier.fillMaxWidth(), fontSize = (if (compact) 24f else 30f * scale).sp)
+                    AnimatedVisibility(vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text("  Calculating…  AC to stop", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
-                }
-                val error = vm.runError
-                AnimatedVisibility(error != null && !vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically(), modifier = Modifier.align(Alignment.End)) {
-                    Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.errorContainer) {
-                        Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Text(error ?: "", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 6.dp))
+                    val error = vm.runError
+                    AnimatedVisibility(error != null && !vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically(), modifier = Modifier.align(Alignment.End)) {
+                        Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.errorContainer) {
+                            Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.ErrorOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Text(error ?: "", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(start = 6.dp))
+                            }
                         }
                     }
                 }
             }
+            items(history.asReversed(), key = { it.id }) { entry ->
+                HistoryItem(entry, formatter, vm, compact, scale, Modifier.animateItem())
+            }
         }
-        items(history.asReversed(), key = { it.id }) { entry ->
-            HistoryItem(entry, formatter, vm, Modifier.animateItem())
+        if (vm.prefs.particles) {
+            ParticleField(
+                particles,
+                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary),
+                Modifier.fillMaxSize(),
+                count = 0,
+                interactive = false,
+                running = vm.prefs.showParticles,
+            )
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryItem(entry: HistoryEntry, formatter: Formatter, vm: CalcViewModel, modifier: Modifier) {
+private fun HistoryItem(entry: HistoryEntry, formatter: Formatter, vm: CalcViewModel, compact: Boolean, scale: Float, modifier: Modifier) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -191,17 +229,34 @@ private fun HistoryItem(entry: HistoryEntry, formatter: Formatter, vm: CalcViewM
     }
     val scheme = MaterialTheme.colorScheme
     val muted = defaultMathColors().copy(normal = scheme.onSurfaceVariant, operator = scheme.onSurfaceVariant)
+    // A new answer grows into place.
+    val appear = remember { Animatable(if (entry.fresh && !vm.prefs.reduceMotion) 0f else 1f) }
+    LaunchedEffect(entry) {
+        entry.fresh = false
+        appear.animateTo(1f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow))
+    }
     Box(modifier) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = { vm.loadIntoInput(entry.input) }, onLongClick = { menu = true })
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            ScrollingMath(entry.input, fontSize = 19.sp, colors = muted)
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                ScrollingMath(result, fontSize = 28.sp, reverse = true)
+        val click = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = { vm.loadIntoInput(entry.input) }, onLongClick = { menu = true })
+        val answer = Modifier.graphicsLayer {
+            val p = appear.value
+            alpha = p.coerceIn(0f, 1f)
+            scaleX = 0.85f + 0.15f * p
+            scaleY = 0.85f + 0.15f * p
+            transformOrigin = TransformOrigin(1f, 0.5f)
+        }
+        if (compact) {
+            Row(click.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { ScrollingMath(entry.input, fontSize = 16.sp, colors = muted) }
+                Box(answer.padding(start = 12.dp)) { ScrollingMath(result, fontSize = 22.sp, reverse = true) }
+            }
+        } else {
+            Column(click.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                ScrollingMath(entry.input, fontSize = (19f * scale).sp, colors = muted)
+                Box(Modifier.fillMaxWidth().then(answer), contentAlignment = Alignment.CenterEnd) {
+                    ScrollingMath(result, fontSize = (28f * scale).sp, reverse = true)
+                }
             }
         }
         HorizontalDivider(

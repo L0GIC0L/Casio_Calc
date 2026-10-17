@@ -1,26 +1,43 @@
 package com.l0gic0l.casiocalc.ui
 
+import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.IntOffset
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.dropUnlessResumed
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigationevent.NavigationEvent
+import com.l0gic0l.casiocalc.ui.adaptive.LocalFold
+import com.l0gic0l.casiocalc.ui.adaptive.LocalScreenSettled
+import com.l0gic0l.casiocalc.ui.adaptive.rememberFold
 import com.l0gic0l.casiocalc.ui.basen.BaseNScreen
 import com.l0gic0l.casiocalc.ui.equation.EquationScreen
 import com.l0gic0l.casiocalc.ui.graph.GraphListScreen
@@ -28,6 +45,9 @@ import com.l0gic0l.casiocalc.ui.graph.GraphViewScreen
 import com.l0gic0l.casiocalc.ui.graph.TableScreen
 import com.l0gic0l.casiocalc.ui.matrix.MatrixScreen
 import com.l0gic0l.casiocalc.ui.menu.MainMenuScreen
+import com.l0gic0l.casiocalc.ui.motion.BackGestureState
+import com.l0gic0l.casiocalc.ui.motion.predictiveBack
+import com.l0gic0l.casiocalc.ui.motion.rememberBackGesture
 import com.l0gic0l.casiocalc.ui.recursion.RecursionScreen
 import com.l0gic0l.casiocalc.ui.run.RunScreen
 import com.l0gic0l.casiocalc.ui.settings.SettingsScreen
@@ -37,7 +57,7 @@ import com.l0gic0l.casiocalc.ui.theme.CasioCalcTheme
 
 private const val DURATION = 320
 
-// Material shared-axis X: screens slide a short way and cross-fade.
+// Opening a screen and the back button: Material shared-axis X, a short slide with a cross-fade.
 private val enter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
     slideInHorizontally(tween(DURATION, easing = FastOutSlowInEasing)) { it / 6 } + fadeIn(tween(DURATION))
 }
@@ -47,45 +67,114 @@ private val exit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTr
 private val popEnter: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition = {
     slideInHorizontally(tween(DURATION, easing = FastOutSlowInEasing)) { -it / 6 } + fadeIn(tween(DURATION))
 }
-
-// Back (including the predictive back gesture, which scrubs this transition): the screen shrinks
-// toward the centre and fades, revealing the one underneath.
 private val popExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition = {
-    scaleOut(tween(DURATION), targetScale = 0.9f, transformOrigin = TransformOrigin.Center) + fadeOut(tween(DURATION))
+    slideOutHorizontally(tween(DURATION, easing = FastOutSlowInEasing)) { it / 6 } + fadeOut(tween(DURATION / 2))
+}
+
+/*
+ * The back gesture scrubs these with the finger, like Android's Settings. The first 75 % is the
+ * part you drag through: the screen shrinks to 90 % and stays opaque (predictiveBack adds the
+ * rounded corners and makes it follow the finger). Releasing plays the rest: it slides away
+ * toward the side the finger was moving to and fades, while the screen underneath comes forward.
+ */
+private const val GESTURE = 400
+private const val DRAG = 300
+
+private val predictivePopExit: AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> ExitTransition = { edge ->
+    val side = if (edge == NavigationEvent.EDGE_RIGHT) -1 else 1
+    scaleOut(
+        keyframes {
+            durationMillis = GESTURE
+            0.9f at DRAG using LinearEasing
+        },
+        targetScale = 0.9f,
+        transformOrigin = TransformOrigin.Center,
+    ) + slideOutHorizontally(
+        keyframes {
+            durationMillis = GESTURE
+            IntOffset.Zero at DRAG using FastOutSlowInEasing
+        },
+    ) { side * it / 3 } + fadeOut(
+        keyframes {
+            durationMillis = GESTURE
+            1f at DRAG using LinearEasing
+        },
+    )
+}
+
+private val predictivePopEnter: AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> EnterTransition = {
+    scaleIn(tween(GESTURE, easing = LinearEasing), initialScale = 0.95f) + fadeIn(tween(GESTURE, easing = LinearEasing), initialAlpha = 0.5f)
 }
 
 @Composable
 fun CasioCalcApp(vm: CalcViewModel = viewModel()) {
-    CasioCalcTheme(mode = vm.prefs.theme, dynamicColor = vm.prefs.dynamicColor) {
+    val prefs = vm.prefs
+    CasioCalcTheme(mode = prefs.theme, dynamicColor = prefs.dynamicColor, pureBlack = prefs.pureBlack) {
+        val view = LocalView.current
+        SideEffect { view.keepScreenOn = prefs.keepScreenOn }
         val nav = rememberNavController()
-        // Guards stop a double tap from popping the main menu or opening a screen twice.
-        val back: () -> Unit = { if (nav.previousBackStackEntry != null) nav.popBackStack() }
-        val open: (String) -> Unit = { route -> nav.navigate(route) { launchSingleTop = true } }
-        val settings: () -> Unit = { open("settings") }
-        NavHost(
-            navController = nav,
-            startDestination = "menu",
-            // A solid background so screens never show through each other mid-transition.
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-            enterTransition = enter,
-            exitTransition = exit,
-            popEnterTransition = popEnter,
-            popExitTransition = popExit,
-        ) {
-            composable("menu") { MainMenuScreen(onOpen = open) }
-            composable("run") { RunScreen(vm, onBack = back, onSettings = settings) }
-            composable("stat") { StatScreen(vm, onBack = back, onGraph = { open("statgraph") }) }
-            composable("statgraph") { StatGraphScreen(vm, onBack = back) }
-            composable("graph") {
-                GraphListScreen(vm, onBack = back, onDraw = { open("graphview") }, onTable = { open("table") }, onSettings = settings)
+        val gesture = rememberBackGesture()
+        CompositionLocalProvider(LocalFold provides rememberFold()) {
+            NavHost(
+                navController = nav,
+                startDestination = "menu",
+                // A solid background so screens never show through each other mid-transition.
+                modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                enterTransition = enter,
+                exitTransition = exit,
+                popEnterTransition = popEnter,
+                popExitTransition = popExit,
+                predictivePopEnterTransition = predictivePopEnter,
+                predictivePopExitTransition = predictivePopExit,
+            ) {
+                // Taps on a screen that is already leaving (a double tap on back, say) are ignored.
+                screen("menu", gesture) {
+                    val s = vm.settings
+                    val entry = LocalLifecycleOwner.current
+                    MainMenuScreen(
+                        prefs = vm.prefs,
+                        status = "${s.angle.label} · ${if (s.exactOutput) "Math" else "Decimal"} · ${s.display.label}",
+                        onOpen = { route ->
+                            if (entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                                nav.navigate(route) { launchSingleTop = true }
+                            }
+                        },
+                    )
+                }
+                screen("run", gesture) {
+                    RunScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }, onSettings = dropUnlessResumed { nav.navigate("settings") })
+                }
+                screen("stat", gesture) {
+                    StatScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }, onGraph = dropUnlessResumed { nav.navigate("statgraph") })
+                }
+                screen("statgraph", gesture) { StatGraphScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("graph", gesture) {
+                    GraphListScreen(
+                        vm,
+                        onBack = dropUnlessResumed { nav.popBackStack() },
+                        onDraw = dropUnlessResumed { nav.navigate("graphview") },
+                        onTable = dropUnlessResumed { nav.navigate("table") },
+                        onSettings = dropUnlessResumed { nav.navigate("settings") },
+                    )
+                }
+                screen("graphview", gesture) { GraphViewScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("table", gesture) { TableScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("equation", gesture) { EquationScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("matrix", gesture) { MatrixScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("recursion", gesture) { RecursionScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("basen", gesture) { BaseNScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("settings", gesture) { SettingsScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
             }
-            composable("graphview") { GraphViewScreen(vm, onBack = back) }
-            composable("table") { TableScreen(vm, onBack = back) }
-            composable("equation") { EquationScreen(vm, onBack = back) }
-            composable("matrix") { MatrixScreen(vm, onBack = back) }
-            composable("recursion") { RecursionScreen(vm, onBack = back) }
-            composable("basen") { BaseNScreen(vm, onBack = back) }
-            composable("settings") { SettingsScreen(vm, onBack = back) }
+        }
+    }
+}
+
+/** A destination with the Settings-style back gesture and the settled flag for fold layouts. */
+private fun NavGraphBuilder.screen(route: String, gesture: BackGestureState, content: @Composable AnimatedContentScope.() -> Unit) {
+    composable(route) {
+        val settled = transition.currentState == transition.targetState
+        Box(Modifier.fillMaxSize().predictiveBack(this, gesture)) {
+            CompositionLocalProvider(LocalScreenSettled provides settled) { content() }
         }
     }
 }

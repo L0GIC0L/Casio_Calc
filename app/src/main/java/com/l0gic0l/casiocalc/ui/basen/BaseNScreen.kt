@@ -5,7 +5,10 @@ import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import com.l0gic0l.casiocalc.ui.adaptive.HingeSplit
+import com.l0gic0l.casiocalc.ui.adaptive.currentFold
 import com.l0gic0l.casiocalc.ui.components.appBarInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.WindowInsets
@@ -189,9 +192,15 @@ fun BaseNScreen(vm: CalcViewModel, onBack: () -> Unit) {
             }
         }
 
+        val fold = currentFold()
         BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
             val height = maxHeight
-            if (maxWidth > height) {
+            if (fold.book || fold.tabletop) {
+                // Half-folded: display on one half, keys on the other, nothing across the fold.
+                HingeSplit(vertical = fold.book, hinge = fold.hinge, first = { Display(it) }) { m ->
+                    Box(m, contentAlignment = Alignment.Center) { Keys(Modifier.widthIn(max = 640.dp).fillMaxSize()) }
+                }
+            } else if (maxWidth > height) {
                 // Landscape: display beside the keys.
                 Row(Modifier.fillMaxSize()) {
                     Display(Modifier.weight(1f).fillMaxHeight())

@@ -17,13 +17,13 @@ radical sign, exponents are raised, and matrices are bracketed grids.
 | --- | --- |
 | **Run-Matrix** | Natural-display input with templates (fraction, mixed fraction, √, ˣ√, powers, logₐb, \|x\|, ∫, d/dx, d²/dx², Σ, Π, matrices). Exact results as fractions, surds and multiples of π (sin 60° = √3/2, √8 = 2√2, 1/(1+√2) = −1+√2) with **S⇔D** to switch to decimal. History you can tap to edit, Ans, variables A–Z/θ/r, Mat A–Z, List 1–26, store (→), complex numbers (a+bi and r∠θ), Casio operator priority (1÷2π = 1/(2π)). |
 | **Statistics** | List editor for List 1–26, 1-variable and 2-variable statistics (with frequency list), regressions (linear, quadratic, cubic, quartic, logarithmic, exponential, power), scatter / xyLine / histogram / box plots with the regression curve. Copy a regression to Y=. |
-| **Graph** | Ten function slots of type Y=, r=, parametric and X=; pinch to zoom, drag to pan; Trace; Zoom presets (Auto, Standard, Trig, Initial, Square, in/out); G-Solv (Root, Max, Min, Y-Intercept, Intersection, Y-Cal, X-Cal, ∫dx with shading); View Window. |
+| **Graph** | Ten function slots of type Y=, r=, parametric and X=; pinch to zoom (sideways zooms x, up and down zooms y, diagonally both), drag to pan; Trace; Zoom presets (Auto, Standard, Trig, Initial, Square, in/out); G-Solv (Root, Max, Min, Y-Intercept, Intersection, Y-Cal, X-Cal, ∫dx with shading); View Window. |
 | **Table** | Values of the Y= functions over a start/end/step range. |
 | **Equation** | Simultaneous linear equations (2–6 unknowns, exact fractions), polynomials of degree 2–6 (exact roots where they exist, complex roots included), and a Solver for any equation in any variable. |
 | **Matrix** | Edit Mat A–Z (up to 10×10). Determinant, transpose, inverse (exact), Ref/Rref, identity, powers. |
 | **Recursion** | Sequences aₙ and bₙ, explicit or recursive, tabulated with exact values. |
 | **Base-N** | 32-bit integer arithmetic in Dec/Hex/Bin/Oct with and/or/xor/xnor/not/Neg; results shown in all four bases. |
-| **Set Up** | Deg/Rad/Gra, Norm1/Norm2/Fix/Sci, Eng notation, Math or decimal output, d/c or ab/c fractions, Real/a+bi/r∠θ, theme, dynamic colour, key vibration. |
+| **Settings** | Deg/Rad/Gra, Norm1/Norm2/Fix/Sci, Eng notation, Math or decimal output, d/c or ab/c fractions, Real/a+bi/r∠θ; theme, dynamic colour, pure black, display text size, particles, reduce motion; SHIFT labels, key vibration and click; keep screen on; graph grid, axes, labels and line thickness; reset memory, history or settings. |
 
 Function menus (**OPTN**) cover calculus, numeric (Int, Frac, Intg, Rnd, GCD, LCM, MOD), probability
 (x!, nPr, nCr, Ran#, RanInt#), hyperbolic functions, angle units and °′″, complex functions, matrix
@@ -31,10 +31,16 @@ and list functions, distributions (Normal, Binomial, Poisson, Geometric, t, χ²
 **VARS** inserts variables, matrices and lists and shows what they hold. Settings, variables,
 lists, matrices, graph functions, equations and the calculation history are saved between launches.
 
+The layout adapts to the window: a stacked keypad on phones, a wide keypad in landscape and on
+unfolded foldables, and on a half-folded device the display and keypad sit on either side of the
+fold. Back follows the predictive back gesture: the screen shrinks, rounds its corners and follows
+your finger, with the previous screen dimmed behind it.
+
 ## Keypad
 
-The keypad follows the CG50: tap **SHIFT** for the amber function above a key and **ALPHA** for the
-red letter (SHIFT ALPHA locks letters). While a modifier is on, the keys show what they will type.
+The keypad follows the CG50: tap **SHIFT** for the amber function printed above a key and **ALPHA**
+for the red letter (SHIFT ALPHA locks letters). While a modifier is on, the keys show what they
+will type. EXE is the ↵ key.
 
 | Key | SHIFT | | Key | SHIFT |
 | --- | --- | --- | --- | --- |
@@ -49,7 +55,7 @@ red letter (SHIFT ALPHA locks letters). While a modifier is on, the keys show wh
 | OPTN | SET UP | | 0 | i |
 | S⇔D | °′″ entry | | ×10ˣ | π |
 | x⁻¹ | x! | | (−) | Ans |
-| , | = | | EXE | ≈ (decimal result) |
+| , | = | | EXE (↵) | ≈ (decimal result) |
 | → | ∠ | | ◀ ▶ | start / end of line |
 
 Typing a fraction straight after a number puts that number on top. On an empty line, an operator

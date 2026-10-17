@@ -71,7 +71,7 @@ fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, o
     var error by remember { mutableStateOf<String?>(null) }
     val palette = graphPalette()
 
-    val input = remember(session.shown) {
+    val input = remember(session.opened) {
         val e = session.shown
         InputState(if (e == null) MathRow() else vm.graphFunctions[e.index].let { if (e.second) it.expr2 else it.expr })
     }
@@ -142,7 +142,7 @@ fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, o
                         GraphType.X -> Tokens.letter('Y')
                     }
                     EditorPanel(
-                        vm, label, input, onDone = ::save, onCancel = { session.close(); error = null },
+                        vm, label, input, onDone = ::save, onCancel = { session.close(); error = null }, active = session.current != null,
                         shape = shape, modifier = m, error = error, xVar = xVar, onSetup = onSettings,
                     )
                 }

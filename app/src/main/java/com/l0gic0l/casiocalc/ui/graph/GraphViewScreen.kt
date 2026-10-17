@@ -14,7 +14,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -415,7 +414,7 @@ private fun GraphCanvas(
     val tracePlot = (mode as? Mode.Trace)?.let { plots.getOrNull(it.plot) }
     val currentTracePlot by rememberUpdatedState(tracePlot)
     val prefs = vm.prefs
-    val lineWidth = with(androidx.compose.ui.platform.LocalDensity.current) { 2.5.dp.toPx() }
+    val lineWidth = with(androidx.compose.ui.platform.LocalDensity.current) { prefs.graphLine.dp.dp.toPx() }
 
     val gestures = if (tracing) {
         Modifier.pointerInput(true) {
@@ -439,17 +438,18 @@ private fun GraphCanvas(
         }
     } else {
         Modifier.pointerInput(false) {
-            detectTransformGestures { centroid, pan, zoom, _ ->
+            // Pinch sideways to zoom x, up and down to zoom y, diagonally to zoom both.
+            detectAxisZoomGestures { centroid, pan, zoomX, zoomY ->
                 val w = window
                 val sx = (w.xmax - w.xmin) / size.width
                 val sy = (w.ymax - w.ymin) / size.height
                 val cx = w.xmin + centroid.x * sx
                 val cy = w.ymax - centroid.y * sy
-                val nx0 = cx - (cx - w.xmin) / zoom - pan.x * sx
-                val nx1 = cx + (w.xmax - cx) / zoom - pan.x * sx
-                val ny0 = cy - (cy - w.ymin) / zoom + pan.y * sy
-                val ny1 = cy + (w.ymax - cy) / zoom + pan.y * sy
-                if (nx1 - nx0 > 1e-9 && ny1 - ny0 > 1e-9 && nx1 - nx0 < 1e12) {
+                val nx0 = cx - (cx - w.xmin) / zoomX - pan.x * sx
+                val nx1 = cx + (w.xmax - cx) / zoomX - pan.x * sx
+                val ny0 = cy - (cy - w.ymin) / zoomY + pan.y * sy
+                val ny1 = cy + (w.ymax - cy) / zoomY + pan.y * sy
+                if (nx1 - nx0 > 1e-9 && ny1 - ny0 > 1e-9 && nx1 - nx0 < 1e12 && ny1 - ny0 < 1e12) {
                     vm.updateViewWindow(w.copy(xmin = nx0, xmax = nx1, ymin = ny0, ymax = ny1))
                 }
             }

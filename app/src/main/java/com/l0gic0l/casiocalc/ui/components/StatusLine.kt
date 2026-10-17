@@ -1,11 +1,8 @@
 package com.l0gic0l.casiocalc.ui.components
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +25,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,23 +33,20 @@ import com.l0gic0l.casiocalc.math.eval.AngleUnit
 import com.l0gic0l.casiocalc.math.eval.ComplexMode
 import com.l0gic0l.casiocalc.math.eval.DisplayFormat
 import com.l0gic0l.casiocalc.ui.CalcViewModel
-import com.l0gic0l.casiocalc.ui.keypad.InputState
-import com.l0gic0l.casiocalc.ui.theme.LocalKeyLabelColors
 
 /**
- * The calculator's status bar: SHIFT/ALPHA indicators and the current modes. Tap a mode to cycle
- * it. [leading] and [trailing] hold navigation and actions when the screen has no app bar.
+ * The calculator's status bar: the current modes (SHIFT and ALPHA show on their keys). Tap a
+ * mode to cycle it. [leading] and [trailing] hold navigation and actions when the screen has no
+ * app bar.
  */
 @Composable
 fun StatusLine(
     vm: CalcViewModel,
-    input: InputState?,
     modifier: Modifier = Modifier,
     leading: @Composable () -> Unit = {},
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val s = vm.settings
-    val labels = LocalKeyLabelColors.current
     Row(modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         leading()
         Row(
@@ -61,19 +54,6 @@ fun StatusLine(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (input != null) {
-                val badge = when {
-                    input.shift -> "S" to labels.shift
-                    input.alphaLock -> "A-Lock" to labels.alpha
-                    input.alpha -> "A" to labels.alpha
-                    else -> null
-                }
-                AnimatedVisibility(badge != null, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
-                    AnimatedContent(badge, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "badge") { b ->
-                        if (b != null) Badge(b.first, b.second)
-                    }
-                }
-            }
             Chip(Icons.Filled.Architecture, s.angle.label) {
                 vm.updateSettings { it.copy(angle = AngleUnit.entries[(it.angle.ordinal + 1) % AngleUnit.entries.size]) }
             }
@@ -109,18 +89,5 @@ private fun Chip(icon: ImageVector, text: String, onClick: () -> Unit) {
                 Text(t, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 4.dp))
             }
         }
-    }
-}
-
-@Composable
-private fun Badge(text: String, color: Color) {
-    Surface(shape = RoundedCornerShape(6.dp), color = color) {
-        Text(
-            text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.surface,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
     }
 }

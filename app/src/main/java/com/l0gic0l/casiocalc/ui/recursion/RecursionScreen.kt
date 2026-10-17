@@ -77,7 +77,7 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
     var error by remember { mutableStateOf<String?>(null) }
     val formatter = vm.formatter()
 
-    val input = remember(session.shown) {
+    val input = remember(session.opened) {
         InputState(
             when (session.shown) {
                 Field.A_EXPR -> a.expr
@@ -187,7 +187,7 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             Field.B_FIRST -> "b at n = $start"
                         }
                         EditorPanel(
-                            vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null },
+                            vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null }, active = session.current != null,
                             shape = shape, modifier = Modifier.weight(1f), error = error, xVar = Tokens.SEQ_N,
                         )
                     }

@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -49,9 +50,12 @@ fun EditorPanel(
     error: String? = null,
     xVar: Tok = Tokens.X,
     onSetup: () -> Unit = {},
+    /** False while the panel animates away; it then leaves the back gesture to the screen. */
+    active: Boolean = true,
 ) {
     val backProgress = remember { mutableFloatStateOf(0f) }
-    PredictiveBackHandler { progress ->
+    LaunchedEffect(active) { if (active) backProgress.floatValue = 0f }
+    PredictiveBackHandler(enabled = active) { progress ->
         try {
             progress.collect { backProgress.floatValue = it.progress }
             onCancel()

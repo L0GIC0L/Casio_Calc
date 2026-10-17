@@ -198,7 +198,7 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
             }
             computing = false
             result.onSuccess {
-                history += HistoryEntry(row, it.value, it.style, decimal = decimal)
+                history += HistoryEntry(row, it.value, it.style, decimal = decimal).apply { fresh = true }
                 while (history.size > MAX_HISTORY) history.removeAt(0)
                 runInput.clear()
                 runError = null

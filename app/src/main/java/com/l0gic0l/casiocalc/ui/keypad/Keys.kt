@@ -4,8 +4,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.DataObject
-import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,8 +47,16 @@ sealed interface KeyLabel {
     data class Math(val row: MathRow) : KeyLabel
 
     /** An icon, optionally with a short caption under it; [description] is read by TalkBack. */
-    data class Icon(val image: ImageVector, val description: String, val caption: String? = null) : KeyLabel
+    data class Icon(
+        val image: ImageVector,
+        val description: String,
+        val caption: String? = null,
+        val accent: KeyAccent = KeyAccent.NONE,
+    ) : KeyLabel
 }
+
+/** Theme colour for a key's icon. */
+enum class KeyAccent { NONE, PRIMARY, TERTIARY }
 
 enum class KeyStyle { FUNCTION, NUMBER, OPERATOR, DELETE, CLEAR, EXE, SHIFT, ALPHA, NAV }
 
@@ -114,8 +123,8 @@ object Keys {
             KeySpec(text(")"), ins(Tokens.RPAREN), shiftLabel = "}", shift = ins(Tokens.RBRACE), alphaLabel = "L", alpha = letter('L')),
         ),
         listOf(
-            KeySpec(KeyLabel.Icon(Icons.Filled.Functions, "Options", "OPTN"), cmd(Cmd.OPTN), shiftLabel = "SET UP", shift = cmd(Cmd.SETUP)),
-            KeySpec(KeyLabel.Icon(Icons.Filled.DataObject, "Variables", "VARS"), cmd(Cmd.VARS)),
+            KeySpec(KeyLabel.Icon(Icons.Filled.Tune, "Options", "OPTN", KeyAccent.TERTIARY), cmd(Cmd.OPTN), shiftLabel = "SET UP", shift = cmd(Cmd.SETUP)),
+            KeySpec(KeyLabel.Icon(Icons.Filled.Storage, "Variables", "VARS", KeyAccent.PRIMARY), cmd(Cmd.VARS)),
             KeySpec(text("S⇔D"), cmd(Cmd.SD), shiftLabel = "°′″", shift = ins(Tokens.DMS)),
             KeySpec(text("x⁻¹"), inverse, shiftLabel = "x!", shift = ins(Tokens.FACT), alphaLabel = "M", alpha = letter('M')),
             KeySpec(text(","), ins(Tokens.COMMA), shiftLabel = "=", shift = ins(Tokens.EQ), alphaLabel = "N", alpha = letter('N')),
@@ -152,7 +161,7 @@ object Keys {
             KeySpec(text("."), ins(Tokens.POINT), KeyStyle.NUMBER),
             KeySpec(text("×10ˣ"), ins(Tokens.EXP10), KeyStyle.NUMBER, shiftLabel = "π", shift = ins(Tokens.PI)),
             KeySpec(text("(−)"), ins(Tokens.NEG), KeyStyle.NUMBER, shiftLabel = "Ans", shift = ins(Tokens.ANS)),
-            KeySpec(text("="), cmd(Cmd.EXE), KeyStyle.EXE, shiftLabel = "≈", shift = cmd(Cmd.EXE_DECIMAL)),
+            KeySpec(KeyLabel.Icon(Icons.AutoMirrored.Filled.KeyboardReturn, "Execute"), cmd(Cmd.EXE), KeyStyle.EXE, shiftLabel = "≈", shift = cmd(Cmd.EXE_DECIMAL)),
         ),
     )
 

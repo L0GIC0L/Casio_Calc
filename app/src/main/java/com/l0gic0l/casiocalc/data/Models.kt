@@ -52,23 +52,44 @@ data class StatSettings(
     val freqList: Int = 0,
 )
 
+/** Size of the Run-Matrix display text. */
+enum class TextScale(val label: String, val factor: Float) { SMALL("Small", 0.85f), MEDIUM("Medium", 1f), LARGE("Large", 1.2f) }
+
+/** Width of graph lines. */
+enum class LineWeight(val label: String, val dp: Float) { THIN("Thin", 1.5f), NORMAL("Normal", 2.5f), THICK("Thick", 4f) }
+
 @Serializable
 data class UiPrefs(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
+    /** Black backgrounds in the dark theme. */
+    val pureBlack: Boolean = false,
+    /** Drifting particles on the main menu and a sparkle when a result appears. */
+    val particles: Boolean = true,
+    /** Turns off particles and decorative motion. */
+    val reduceMotion: Boolean = false,
     val haptics: Boolean = true,
-    /** Show each key's SHIFT function in small print on the key. */
+    val keySound: Boolean = false,
+    /** Show each key's SHIFT function in small print above the key. */
     val keyHints: Boolean = true,
+    val displaySize: TextScale = TextScale.MEDIUM,
+    val keepScreenOn: Boolean = false,
     val graphGrid: Boolean = true,
     val graphAxes: Boolean = true,
     val graphLabels: Boolean = true,
-)
+    val graphLine: LineWeight = LineWeight.NORMAL,
+) {
+    val showParticles get() = particles && !reduceMotion
+}
 
 /** A finished Run-Matrix calculation. S⇔D flips [decimal]. */
 class HistoryEntry(val input: MathRow, val value: Value, val style: Formatter.Style, decimal: Boolean = false) {
     /** Stable key for lists. */
     val id: Long = nextId.getAndIncrement()
     var decimal by mutableStateOf(decimal)
+
+    /** True until the entry has been shown once, so only new answers animate in. */
+    var fresh = false
 
     private companion object {
         val nextId = java.util.concurrent.atomic.AtomicLong()

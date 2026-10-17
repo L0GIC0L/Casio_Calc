@@ -88,8 +88,9 @@ class AdaptiveTest {
     @Config(qualifiers = "w1280dp-h800dp-xhdpi")
     @Test fun tablet() = shot("adaptive_tablet")
 
-    @Config(qualifiers = "w841dp-h701dp-xhdpi")
-    @Test fun tabletop() = shot("adaptive_tabletop", Fold(tabletop = true, hinge = Rect(0f, 1040f, 1682f, 1060f)))
+    // A Pixel Fold half-opened like a laptop: the 701 × 841dp window with the fold across the middle.
+    @Config(qualifiers = "w701dp-h841dp-xhdpi")
+    @Test fun tabletop() = shot("adaptive_tabletop", Fold(tabletop = true, hinge = Rect(0f, 841f, 1402f, 841f)))
 
     @Config(qualifiers = "w841dp-h701dp-xhdpi")
     @Test fun book() = shot("adaptive_book", Fold(book = true, hinge = Rect(836f, 0f, 846f, 1402f)))

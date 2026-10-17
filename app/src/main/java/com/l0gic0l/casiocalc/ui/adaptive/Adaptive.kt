@@ -3,10 +3,15 @@ package com.l0gic0l.casiocalc.ui.adaptive
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,12 +21,16 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -58,11 +67,23 @@ fun chooseLayout(width: Dp, height: Dp, fold: Fold): CalcLayout = when {
     else -> CalcLayout.PORTRAIT
 }
 
-/** Keypad height for the stacked phone layout. */
-fun portraitKeypadHeight(available: Dp): Dp = min(available * 0.6f, 470.dp)
+/** Keypad height for the stacked phone layout (it includes the SHIFT labels above the keys). */
+fun portraitKeypadHeight(available: Dp): Dp = min(available * 0.6f, 520.dp)
 
-/** Keypad height for the 4-row wide layout. */
-fun wideKeypadHeight(available: Dp): Dp = min(available * 0.56f, 300.dp)
+/** Keypad height for the 4-row wide layout; short landscape windows keep half for the display. */
+fun wideKeypadHeight(available: Dp): Dp = if (available < 480.dp) available * 0.5f else min(available * 0.6f, 320.dp)
+
+/** The window's fold, read once for the whole app so a newly opened screen sees it on its first frame. */
+val LocalFold = compositionLocalOf<Fold?> { null }
+
+/**
+ * False while the screen is sliding or scaling in a navigation transition. Positions measured
+ * then are not where the screen will settle, so [HingeSplit] ignores them.
+ */
+val LocalScreenSettled = compositionLocalOf { true }
+
+@Composable
+fun currentFold(): Fold = LocalFold.current ?: rememberFold()
 
 @Composable
 fun rememberFold(): Fold {
@@ -90,7 +111,8 @@ fun HingeSplit(
     second: @Composable (Modifier) -> Unit,
 ) {
     var origin by remember { mutableStateOf<Offset?>(null) }
-    BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { origin = it.positionInWindow() }) {
+    val settled = LocalScreenSettled.current
+    BoxWithConstraints(modifier.fillMaxSize().onGloballyPositioned { if (settled) origin = it.positionInWindow() }) {
         val density = LocalDensity.current
         val totalPx = if (vertical) constraints.maxWidth else constraints.maxHeight
         val o = origin
@@ -127,7 +149,7 @@ fun HingeSplit(
 @Composable
 fun CalcScreenLayout(
     modifier: Modifier = Modifier,
-    fold: Fold = rememberFold(),
+    fold: Fold = currentFold(),
     display: @Composable (Modifier) -> Unit,
     keypad: @Composable (KeypadShape, Modifier) -> Unit,
 ) {
@@ -169,28 +191,39 @@ fun CalcScreenLayout(
 fun EditorLayout(
     editing: Boolean,
     modifier: Modifier = Modifier,
-    fold: Fold = rememberFold(),
+    fold: Fold = currentFold(),
     content: @Composable (Modifier) -> Unit,
     editor: @Composable (KeypadShape, Modifier) -> Unit,
 ) {
+    // The branch depends only on the window and posture, never on [editing], so opening the
+    // editor never moves [content] and its scroll positions and choices survive.
     BoxWithConstraints(modifier.fillMaxSize()) {
         val maxWidth = maxWidth
         val maxHeight = maxHeight
         val layout = chooseLayout(maxWidth, maxHeight, fold)
         val side = layout == CalcLayout.BOOK || (maxWidth >= 840.dp && maxHeight >= 480.dp)
         when {
-            editing && layout == CalcLayout.BOOK -> HingeSplit(true, fold.hinge, first = content) { m ->
-                editor(KeypadShape.STACKED, m)
-            }
-            editing && layout == CalcLayout.TABLETOP -> HingeSplit(false, fold.hinge, first = content) { m ->
-                editor(if (maxWidth >= 600.dp) KeypadShape.WIDE else KeypadShape.STACKED, m)
+            // Half-folded: content on one half, the editor on the other half when open.
+            layout == CalcLayout.BOOK || layout == CalcLayout.TABLETOP -> {
+                val book = layout == CalcLayout.BOOK
+                HingeSplit(book, fold.hinge, first = content) { m ->
+                    Box(m) {
+                        androidx.compose.animation.AnimatedVisibility(editing, enter = fadeIn(), exit = fadeOut()) {
+                            editor(if (!book && maxWidth >= 600.dp) KeypadShape.WIDE else KeypadShape.STACKED, Modifier.fillMaxSize())
+                        }
+                        androidx.compose.animation.AnimatedVisibility(!editing, enter = fadeIn(), exit = fadeOut(), modifier = Modifier.align(Alignment.Center)) {
+                            EditorHint()
+                        }
+                    }
+                }
             }
             side -> Row(Modifier.fillMaxSize()) {
                 content(Modifier.weight(1f).fillMaxHeight())
+                // The panel's slot grows with it, so the content beside it resizes in step.
                 AnimatedVisibility(
                     visible = editing,
-                    enter = slideInHorizontally { it } + fadeIn(),
-                    exit = slideOutHorizontally { it } + fadeOut(),
+                    enter = expandHorizontally(expandFrom = Alignment.Start) + fadeIn(),
+                    exit = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut(),
                 ) {
                     editor(KeypadShape.STACKED, Modifier.width(min(maxWidth * 0.45f, 460.dp)).fillMaxHeight())
                 }
@@ -202,12 +235,12 @@ fun EditorLayout(
                 val height = when {
                     wide && maxHeight < 420.dp -> maxHeight
                     wide -> min(maxHeight * 0.62f, 400.dp)
-                    else -> min(maxHeight * 0.68f, 560.dp)
+                    else -> (maxHeight * 0.68f).coerceIn(400.dp, 560.dp).coerceAtMost(maxHeight)
                 }
                 AnimatedVisibility(
                     visible = editing,
-                    enter = slideInVertically { it } + fadeIn(),
-                    exit = slideOutVertically { it } + fadeOut(),
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
                 ) {
                     editor(
                         if (wide) KeypadShape.WIDE else KeypadShape.STACKED,
@@ -216,6 +249,20 @@ fun EditorLayout(
                 }
             }
         }
+    }
+}
+
+/** Shown on the editor's half of a folded screen while nothing is being edited. */
+@Composable
+private fun EditorHint() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+        Icon(Icons.Outlined.TouchApp, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+        Text(
+            "Tap a cell to edit it here",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 
@@ -230,9 +277,14 @@ class EditSession<T : Any> {
     var shown by mutableStateOf<T?>(null)
         private set
 
+    /** Changes on every [open], so an editor reopened on the same cell starts from its current value. */
+    var opened by mutableIntStateOf(0)
+        private set
+
     fun open(target: T) {
         current = target
         shown = target
+        opened++
     }
 
     fun close() {

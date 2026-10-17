@@ -87,7 +87,7 @@ fun StatScreen(vm: CalcViewModel, onBack: () -> Unit, onGraph: () -> Unit) {
     val lists = (1..26).map { vm.memory.getList(it)?.items ?: emptyList() }
     val rowCount = (lists.maxOf { it.size } + 1).coerceAtLeast(8)
 
-    val input = remember(session.shown) {
+    val input = remember(session.opened) {
         val e = session.shown
         InputState(e?.let { c -> lists[c.list - 1].getOrNull(c.index)?.let { formatter.format(Value.Num(it), Formatter.Style.DECIMAL) } } ?: MathRow())
     }
@@ -220,7 +220,7 @@ fun StatScreen(vm: CalcViewModel, onBack: () -> Unit, onGraph: () -> Unit) {
                 session.shown?.let { e ->
                     EditorPanel(
                         vm, "List ${e.list}[${e.index + 1}]", input, onDone = ::commit,
-                        onCancel = { session.close(); error = null }, shape = shape, modifier = m, error = error,
+                        onCancel = { session.close(); error = null }, shape = shape, modifier = m, error = error, active = session.current != null,
                     )
                 }
             },

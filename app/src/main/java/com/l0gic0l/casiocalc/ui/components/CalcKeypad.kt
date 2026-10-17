@@ -48,6 +48,7 @@ fun CalcKeypad(
         shape = shape,
         haptics = vm.prefs.haptics,
         showHints = vm.prefs.keyHints,
+        sound = vm.prefs.keySound,
     )
 
     val insertTok: (Tok) -> Unit = { dispatch(KeyAction.Insert(it)) }

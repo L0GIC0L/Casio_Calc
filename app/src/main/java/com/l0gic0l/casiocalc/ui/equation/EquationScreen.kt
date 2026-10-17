@@ -97,7 +97,7 @@ fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
     var outcome by remember(tab) { mutableStateOf<Outcome?>(null) }
     val formatter = vm.formatter()
 
-    val input = remember(session.shown) {
+    val input = remember(session.opened) {
         val initial = when (val t = session.shown) {
             is Target.Sim -> formatter.format(vm.simCoefficients[t.index])
             is Target.Poly -> formatter.format(vm.polyCoefficients[t.index])
@@ -207,7 +207,7 @@ fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         Target.Equation -> "Equation (use = between the sides)"
                         is Target.Variable -> "Value of ${if (t.name == "theta") "θ" else t.name}"
                     }
-                    EditorPanel(vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null }, shape = shape, modifier = m, error = error)
+                    EditorPanel(vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null }, shape = shape, modifier = m, error = error, active = session.current != null)
                 }
             },
         )

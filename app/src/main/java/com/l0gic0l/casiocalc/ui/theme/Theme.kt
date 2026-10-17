@@ -2,6 +2,9 @@ package com.l0gic0l.casiocalc.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -59,6 +62,7 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 fun CasioCalcTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
+    pureBlack: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {
@@ -73,13 +77,61 @@ fun CasioCalcTheme(
         }
         dark -> DarkColors
         else -> LightColors
-    }
+    }.let { if (dark && pureBlack) it.blackened() else it }
     val labels = if (dark) {
         KeyLabelColors(shift = Color(0xFFFFB870), alpha = Color(0xFFFF8A80))
     } else {
         KeyLabelColors(shift = Color(0xFF9A5A00), alpha = Color(0xFFC62828))
     }
     androidx.compose.runtime.CompositionLocalProvider(LocalKeyLabelColors provides labels) {
-        MaterialTheme(colorScheme = scheme, content = content)
+        MaterialTheme(colorScheme = animateColorScheme(scheme), content = content)
     }
+}
+
+/** Black background and surfaces, keeping the tonal containers so cards and keys still stand out. */
+private fun ColorScheme.blackened() = copy(
+    background = Color.Black,
+    surface = Color.Black,
+    surfaceDim = Color.Black,
+    surfaceContainerLowest = Color.Black,
+    surfaceContainerLow = Color(0xFF0B0B0D),
+    surfaceContainer = Color(0xFF121214),
+)
+
+/** Theme changes fade between colours instead of snapping. */
+@Composable
+private fun animateColorScheme(target: ColorScheme): ColorScheme {
+    val spec = tween<Color>(400)
+    @Composable
+    fun a(c: Color) = animateColorAsState(c, spec, label = "scheme").value
+    return target.copy(
+        primary = a(target.primary),
+        onPrimary = a(target.onPrimary),
+        primaryContainer = a(target.primaryContainer),
+        onPrimaryContainer = a(target.onPrimaryContainer),
+        secondary = a(target.secondary),
+        onSecondary = a(target.onSecondary),
+        secondaryContainer = a(target.secondaryContainer),
+        onSecondaryContainer = a(target.onSecondaryContainer),
+        tertiary = a(target.tertiary),
+        onTertiary = a(target.onTertiary),
+        tertiaryContainer = a(target.tertiaryContainer),
+        onTertiaryContainer = a(target.onTertiaryContainer),
+        background = a(target.background),
+        onBackground = a(target.onBackground),
+        surface = a(target.surface),
+        onSurface = a(target.onSurface),
+        surfaceVariant = a(target.surfaceVariant),
+        onSurfaceVariant = a(target.onSurfaceVariant),
+        outline = a(target.outline),
+        outlineVariant = a(target.outlineVariant),
+        surfaceContainerLowest = a(target.surfaceContainerLowest),
+        surfaceContainerLow = a(target.surfaceContainerLow),
+        surfaceContainer = a(target.surfaceContainer),
+        surfaceContainerHigh = a(target.surfaceContainerHigh),
+        surfaceContainerHighest = a(target.surfaceContainerHighest),
+        error = a(target.error),
+        errorContainer = a(target.errorContainer),
+        onErrorContainer = a(target.onErrorContainer),
+    )
 }
