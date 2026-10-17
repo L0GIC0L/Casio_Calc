@@ -4,13 +4,14 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.EaseInCubic
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -24,7 +25,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.unit.IntOffset
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.dropUnlessResumed
@@ -72,38 +72,30 @@ private val popExit: AnimatedContentTransitionScope<NavBackStackEntry>.() -> Exi
 }
 
 /*
- * The back gesture scrubs these with the finger, like Android's Settings. The first 75 % is the
- * part you drag through: the screen shrinks to 90 % and stays opaque (predictiveBack adds the
- * rounded corners and makes it follow the finger). Releasing plays the rest: it slides away
- * toward the side the finger was moving to and fades, while the screen underneath comes forward.
+ * The back gesture scrubs these with the finger, like Android's Settings. A swipe usually lets go
+ * at a third of the way or less, so the shrink is front-loaded (it shows from the start of the
+ * drag) while the slide and fade are back-loaded: barely visible while dragging, then the screen
+ * leaves toward the side the finger was moving to as soon as you let go. predictiveBack adds the
+ * rounded corners, the finger tracking and the dimmed screen underneath.
  */
 private const val GESTURE = 400
-private const val DRAG = 300
 
 private val predictivePopExit: AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> ExitTransition = { edge ->
     val side = if (edge == NavigationEvent.EDGE_RIGHT) -1 else 1
-    scaleOut(
-        keyframes {
-            durationMillis = GESTURE
-            0.9f at DRAG using LinearEasing
-        },
-        targetScale = 0.9f,
-        transformOrigin = TransformOrigin.Center,
-    ) + slideOutHorizontally(
-        keyframes {
-            durationMillis = GESTURE
-            IntOffset.Zero at DRAG using FastOutSlowInEasing
-        },
-    ) { side * it / 3 } + fadeOut(
-        keyframes {
-            durationMillis = GESTURE
-            1f at DRAG using LinearEasing
-        },
-    )
+    scaleOut(tween(GESTURE, easing = LinearOutSlowInEasing), targetScale = 0.9f, transformOrigin = TransformOrigin.Center) +
+        slideOutHorizontally(tween(GESTURE, easing = EaseInCubic)) { side * it / 3 } +
+        // Opaque through the first half, so the screen underneath never ghosts through it mid-drag.
+        fadeOut(
+            keyframes {
+                durationMillis = GESTURE
+                1f at GESTURE / 2 using LinearEasing
+            },
+        )
 }
 
+// No scale here: the revealed screen fills the window, so the dimming covers all of it.
 private val predictivePopEnter: AnimatedContentTransitionScope<NavBackStackEntry>.(Int) -> EnterTransition = {
-    scaleIn(tween(GESTURE, easing = LinearEasing), initialScale = 0.95f) + fadeIn(tween(GESTURE, easing = LinearEasing), initialAlpha = 0.5f)
+    fadeIn(tween(GESTURE, easing = LinearEasing), initialAlpha = 0.5f)
 }
 
 @Composable

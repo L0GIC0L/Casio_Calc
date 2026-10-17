@@ -152,7 +152,7 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                 Group("Keypad and screen", Accent.PRIMARY) {
                     item { SwitchItem("SHIFT labels", "Each key's SHIFT function in small print above it", Icons.Default.Keyboard, p.keyHints) { v -> vm.updatePrefs { it.copy(keyHints = v) } } }
                     item { SwitchItem("Key vibration", null, Icons.Default.Vibration, p.haptics) { v -> vm.updatePrefs { it.copy(haptics = v) } } }
-                    item { SwitchItem("Key click sound", "Follows the system touch sound setting", Icons.AutoMirrored.Filled.VolumeUp, p.keySound) { v -> vm.updatePrefs { it.copy(keySound = v) } } }
+                    item { SwitchItem("Key click sound", "Needs Touch sounds on in the system sound settings", Icons.AutoMirrored.Filled.VolumeUp, p.keySound) { v -> vm.updatePrefs { it.copy(keySound = v) } } }
                     item { SwitchItem("Keep screen on", "While the app is open", Icons.Default.ScreenLockPortrait, p.keepScreenOn) { v -> vm.updatePrefs { it.copy(keepScreenOn = v) } } }
                 }
 

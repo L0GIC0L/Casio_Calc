@@ -69,7 +69,8 @@ data class UiPrefs(
     /** Turns off particles and decorative motion. */
     val reduceMotion: Boolean = false,
     val haptics: Boolean = true,
-    val keySound: Boolean = false,
+    /** Key clicks, which also need the system Touch sounds setting on. */
+    val keySound: Boolean = true,
     /** Show each key's SHIFT function in small print above the key. */
     val keyHints: Boolean = true,
     val displaySize: TextScale = TextScale.MEDIUM,

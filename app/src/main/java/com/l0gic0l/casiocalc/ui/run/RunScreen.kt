@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -51,7 +52,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +64,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.l0gic0l.casiocalc.data.HistoryEntry
@@ -167,18 +168,20 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
         val compact = maxHeight < 200.dp
         val width = constraints.maxWidth.toFloat()
         val height = constraints.maxHeight.toFloat()
-        // A new answer arrives with a small shower of sparks.
-        var seen by remember { mutableIntStateOf(history.size) }
-        LaunchedEffect(history.size) {
-            if (history.size > seen && vm.prefs.showParticles) {
+        // A new answer arrives with a small shower of sparks. Keyed on the newest entry, not the
+        // count, which stops growing once the history is full.
+        val newest = history.lastOrNull()?.id
+        var seen by remember { mutableStateOf(newest) }
+        LaunchedEffect(newest) {
+            if (newest != null && newest != seen && vm.prefs.showParticles) {
                 // Roughly where the newest answer lands: just above the input line, at the right.
-                particles.burst(width * 0.8f, (height - (if (compact) 70f else 110f) * density).coerceAtLeast(height * 0.3f), 28, density)
+                particles.burst(width * 0.8f, (height - (if (compact) 66f else 110f) * density).coerceAtLeast(height * 0.3f), 28, density)
             }
-            seen = history.size
+            seen = newest
         }
         LazyColumn(Modifier.fillMaxSize(), state = listState, reverseLayout = true) {
             item(key = "input") {
-                Column(Modifier.fillMaxWidth().heightIn(min = if (compact) 52.dp else 72.dp).padding(horizontal = 16.dp, vertical = if (compact) 4.dp else 8.dp)) {
+                Column(Modifier.fillMaxWidth().heightIn(min = if (compact) 48.dp else 72.dp).padding(horizontal = 16.dp, vertical = if (compact) 2.dp else 8.dp)) {
                     MathInputField(vm.runInput, Modifier.fillMaxWidth(), fontSize = (if (compact) 24f else 30f * scale).sp)
                     AnimatedVisibility(vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -198,25 +201,31 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
                 }
             }
             items(history.asReversed(), key = { it.id }) { entry ->
-                HistoryItem(entry, formatter, vm, compact, scale, Modifier.animateItem())
+                HistoryItem(entry, formatter, vm, compact, scale, maxWidth * 0.6f, Modifier.animateItem())
             }
         }
-        if (vm.prefs.particles) {
-            ParticleField(
-                particles,
-                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary),
-                Modifier.fillMaxSize(),
-                count = 0,
-                interactive = false,
-                running = vm.prefs.showParticles,
-            )
-        }
+        ParticleField(
+            particles,
+            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary),
+            Modifier.fillMaxSize(),
+            count = 0,
+            running = vm.prefs.showParticles,
+        )
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HistoryItem(entry: HistoryEntry, formatter: Formatter, vm: CalcViewModel, compact: Boolean, scale: Float, modifier: Modifier) {
+private fun HistoryItem(
+    entry: HistoryEntry,
+    formatter: Formatter,
+    vm: CalcViewModel,
+    compact: Boolean,
+    scale: Float,
+    /** In a one-line row the answer gets at most this much, so the input always shows too. */
+    answerMaxWidth: Dp,
+    modifier: Modifier,
+) {
     var menu by remember { mutableStateOf(false) }
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -249,7 +258,7 @@ private fun HistoryItem(entry: HistoryEntry, formatter: Formatter, vm: CalcViewM
         if (compact) {
             Row(click.padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { ScrollingMath(entry.input, fontSize = 16.sp, colors = muted) }
-                Box(answer.padding(start = 12.dp)) { ScrollingMath(result, fontSize = 22.sp, reverse = true) }
+                Box(answer.padding(start = 12.dp).widthIn(max = answerMaxWidth)) { ScrollingMath(result, fontSize = 20.sp, reverse = true) }
             }
         } else {
             Column(click.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {

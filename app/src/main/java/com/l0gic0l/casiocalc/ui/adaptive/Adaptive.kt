@@ -70,8 +70,8 @@ fun chooseLayout(width: Dp, height: Dp, fold: Fold): CalcLayout = when {
 /** Keypad height for the stacked phone layout (it includes the SHIFT labels above the keys). */
 fun portraitKeypadHeight(available: Dp): Dp = min(available * 0.6f, 520.dp)
 
-/** Keypad height for the 4-row wide layout; short landscape windows keep half for the display. */
-fun wideKeypadHeight(available: Dp): Dp = if (available < 480.dp) available * 0.5f else min(available * 0.6f, 320.dp)
+/** Keypad height for the 4-row wide layout; short landscape windows keep 44 % for the display. */
+fun wideKeypadHeight(available: Dp): Dp = if (available < 480.dp) min(available * 0.56f, 300.dp) else min(available * 0.6f, 320.dp)
 
 /** The window's fold, read once for the whole app so a newly opened screen sees it on its first frame. */
 val LocalFold = compositionLocalOf<Fold?> { null }

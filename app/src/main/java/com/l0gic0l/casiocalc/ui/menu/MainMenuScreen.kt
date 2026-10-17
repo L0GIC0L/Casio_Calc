@@ -64,7 +64,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.l0gic0l.casiocalc.data.UiPrefs
 import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import com.l0gic0l.casiocalc.ui.adaptive.currentFold
 import com.l0gic0l.casiocalc.ui.effects.ParticleField
+import com.l0gic0l.casiocalc.ui.effects.particleTouch
 import com.l0gic0l.casiocalc.ui.effects.rememberParticleState
 import kotlinx.coroutines.delay
 
@@ -106,14 +108,10 @@ fun MainMenuScreen(prefs: UiPrefs = UiPrefs(), status: String? = null, onOpen: (
     val window = LocalWindowInfo.current.containerSize
     val short = with(LocalDensity.current) { window.height.toDp() } < 480.dp
 
-    Box(Modifier.fillMaxSize().background(scheme.background)) {
-        if (prefs.particles) {
-            ParticleField(
-                particles,
-                listOf(scheme.primary, scheme.tertiary, scheme.secondary),
-                Modifier.fillMaxSize(),
-                running = prefs.showParticles,
-            )
+    // The touch watcher sits on the parent: the Scaffold in front would hide touches from the field itself.
+    Box(Modifier.fillMaxSize().background(scheme.background).particleTouch(particles, enabled = prefs.showParticles)) {
+        if (prefs.showParticles) {
+            ParticleField(particles, listOf(scheme.primary, scheme.tertiary, scheme.secondary), Modifier.fillMaxSize())
         }
         Scaffold(
             containerColor = Color.Transparent,
@@ -129,7 +127,8 @@ fun MainMenuScreen(prefs: UiPrefs = UiPrefs(), status: String? = null, onOpen: (
             LazyVerticalGrid(
                 state = grid,
                 // 104dp gives the calculator's 3 × 3 menu on phones and more columns on wide screens.
-                columns = GridCells.Adaptive(104.dp),
+                // Half-folded like a book, an even number of columns keeps a gap on the fold.
+                columns = if (currentFold().book) GridCells.Fixed(6) else GridCells.Adaptive(104.dp),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),

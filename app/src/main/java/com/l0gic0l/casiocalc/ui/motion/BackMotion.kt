@@ -5,6 +5,7 @@ import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +30,7 @@ import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /** The system back gesture in progress, if any: where the finger is, which edge it came from and how far it has gone. */
 @Stable
@@ -114,8 +116,10 @@ fun Modifier.predictiveBack(scope: AnimatedVisibilityScope, gesture: BackGesture
         val r = round.value
         if (r == 0f && lean.value == 0f && drop.value == 0f) return@graphicsLayer
         translationX = lean.value * size.width * 0.06f
-        // The screen follows about a third of the finger's travel, up to 7 % of its height.
-        translationY = (drop.value * 0.3f).coerceIn(-size.height * 0.07f, size.height * 0.07f)
+        // The screen follows about a third of the finger's travel, but never further than the
+        // margin its shrinking has opened, so it settles back together with the progress.
+        val gap = size.height * 0.05f * LinearOutSlowInEasing.transform(abs(lean.value))
+        translationY = (drop.value * 0.3f).coerceIn(-gap, gap)
         if (r > 0f) {
             shape = RoundedCornerShape(32.dp * r)
             clip = true

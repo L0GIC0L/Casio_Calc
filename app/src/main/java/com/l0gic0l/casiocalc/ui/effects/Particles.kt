@@ -144,9 +144,9 @@ class ParticleState(private val seed: Int = 7) {
 }
 
 /**
- * Draws [state]'s particles in [colours] (three theme colours). [count] dots drift across the
- * field; with [interactive] touches anywhere inside push them aside without stealing the touch
- * from buttons on top. Nothing moves while [running] is false.
+ * Draws [state]'s particles in [colours] (three theme colours); [count] dots drift across the
+ * field. Nothing is drawn while [running] is false or the system's "Remove animations" is on,
+ * so the field never shows frozen dots. Touches come from [particleTouch] on a parent.
  */
 @Composable
 fun ParticleField(
@@ -154,50 +154,29 @@ fun ParticleField(
     colours: List<Color>,
     modifier: Modifier = Modifier,
     count: Int = 70,
-    interactive: Boolean = true,
     running: Boolean = true,
 ) {
     val density = LocalDensity.current.density
     val palette by rememberUpdatedState(colours)
-    // Respect "Remove animations" in the system accessibility settings.
-    val moving = running && remember { ValueAnimator.areAnimatorsEnabled() }
-    if (moving) {
-        LaunchedEffect(state, count) {
-            var last = 0L
-            while (true) {
-                // A field with no drifting dust sleeps until the next burst instead of redrawing every frame.
-                if (count == 0 && state.sparks.isEmpty()) {
-                    val seen = state.bursts
-                    snapshotFlow { state.bursts }.first { it != seen }
-                    last = 0L
-                }
-                withInfiniteAnimationFrameNanos { now ->
-                    val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.05f)
-                    last = now
-                    state.step(dt, density)
-                    state.frame = now
-                }
+    if (!running || !rememberAnimatorsEnabled()) return
+    LaunchedEffect(state, count) {
+        var last = 0L
+        while (true) {
+            // A field with no drifting dust sleeps until the next burst instead of redrawing every frame.
+            if (count == 0 && state.sparks.isEmpty()) {
+                val seen = state.bursts
+                snapshotFlow { state.bursts }.first { it != seen }
+                last = 0L
+            }
+            withInfiniteAnimationFrameNanos { now ->
+                val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceAtMost(0.05f)
+                last = now
+                state.step(dt, density)
+                state.frame = now
             }
         }
     }
-    val touch = if (interactive && moving) {
-        Modifier.pointerInput(state) {
-            awaitPointerEventScope {
-                while (true) {
-                    // The initial pass sees the touch before the buttons do and leaves it unconsumed.
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    for (c in event.changes) {
-                        if (!c.pressed) continue
-                        state.push(c.position.x, c.position.y, density)
-                        if (!c.previousPressed) state.burst(c.position.x, c.position.y, 14, density, 0.6f)
-                    }
-                }
-            }
-        }
-    } else {
-        Modifier
-    }
-    Canvas(modifier.then(touch)) {
+    Canvas(modifier) {
         state.frame // read so each frame redraws
         state.ensureDust(count, size.width, size.height, density)
         for (p in state.dust) {
@@ -214,6 +193,33 @@ fun ParticleField(
         }
     }
 }
+
+/**
+ * Touches anywhere in this element push [state]'s dust aside and scatter a few sparks. Put it on
+ * a parent of both the field and the buttons over it: it watches the touch on its way down to the
+ * buttons (the initial pass) and never consumes it, so taps and scrolls work as usual.
+ */
+@Composable
+fun Modifier.particleTouch(state: ParticleState, enabled: Boolean = true): Modifier {
+    val density = LocalDensity.current.density
+    if (!enabled || !rememberAnimatorsEnabled()) return this
+    return pointerInput(state) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                for (c in event.changes) {
+                    if (!c.pressed) continue
+                    state.push(c.position.x, c.position.y, density)
+                    if (!c.previousPressed) state.burst(c.position.x, c.position.y, 14, density, 0.6f)
+                }
+            }
+        }
+    }
+}
+
+/** False when "Remove animations" is on in the system accessibility settings. */
+@Composable
+private fun rememberAnimatorsEnabled(): Boolean = remember { ValueAnimator.areAnimatorsEnabled() }
 
 /** A [ParticleState] that lives as long as the composable that remembers it. */
 @Composable

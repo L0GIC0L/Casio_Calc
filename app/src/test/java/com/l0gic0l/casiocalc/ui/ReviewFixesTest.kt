@@ -11,13 +11,23 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.ui.Modifier
 import com.l0gic0l.casiocalc.data.UiPrefs
+import com.l0gic0l.casiocalc.ui.effects.ParticleState
+import com.l0gic0l.casiocalc.ui.effects.particleTouch
 import com.l0gic0l.casiocalc.ui.adaptive.EditSession
 import com.l0gic0l.casiocalc.ui.matrix.MatrixScreen
 import com.l0gic0l.casiocalc.ui.theme.CasioCalcTheme
 import com.l0gic0l.casiocalc.ui.theme.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -79,6 +89,21 @@ class ReviewFixesTest {
         compose.onRoot().captureRoboImage("src/test/screenshots/back_gesture.png")
         compose.runOnUiThread { dispatcher.dispatchOnBackCancelled() }
         compose.waitForIdle()
+    }
+
+    /** The Scaffold in front of the particle field used to swallow every touch before the particles saw it. */
+    @Test fun touchesReachParticlesAndTheButtonUnderneath() {
+        val particles = ParticleState()
+        var clicked = false
+        compose.setContent {
+            Box(Modifier.fillMaxSize().particleTouch(particles)) {
+                Scaffold { padding -> Button(onClick = { clicked = true }, modifier = Modifier.padding(padding)) { Text("Tap") } }
+            }
+        }
+        compose.onNodeWithText("Tap").performClick()
+        compose.waitForIdle()
+        assertTrue("the tap should scatter sparks", particles.sparks.isNotEmpty())
+        assertTrue("the button should still get the tap", clicked)
     }
 
     @Test fun menuDark() {
