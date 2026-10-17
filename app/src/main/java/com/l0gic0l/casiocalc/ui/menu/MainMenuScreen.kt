@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.menu
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,6 +32,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,9 +58,15 @@ val menuEntries = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainMenuScreen(onOpen: (String) -> Unit) {
-    Scaffold(topBar = { LargeTopAppBar(title = { Text("Main Menu") }) }) { padding ->
+    // The large title collapses as the grid scrolls, which matters in landscape.
+    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = { LargeTopAppBar(title = { Text("Main Menu") }, windowInsets = appBarInsets, scrollBehavior = scroll) },
+    ) { padding ->
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(104.dp),
+            columns = GridCells.Adaptive(120.dp),
             contentPadding = PaddingValues(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),

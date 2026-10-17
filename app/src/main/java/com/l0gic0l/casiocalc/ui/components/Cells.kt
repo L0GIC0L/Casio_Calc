@@ -16,12 +16,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.l0gic0l.casiocalc.math.editor.MathRow
 import com.l0gic0l.casiocalc.math.format.Formatter
+import com.l0gic0l.casiocalc.math.format.RowText
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.ui.math.MathView
 
@@ -36,6 +39,8 @@ fun ValueCell(
     height: Dp = 48.dp,
     /** Show decimals instead of fractions, as list editors do. */
     decimal: Boolean = false,
+    /** Where the cell is, e.g. "List 1, row 3"; read by TalkBack together with the value. */
+    description: String? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -50,6 +55,10 @@ fun ValueCell(
         modifier = Modifier
             .padding(2.dp)
             .size(width, height)
+            .semantics {
+                val text = row?.let { RowText.linear(it) } ?: "empty"
+                contentDescription = if (description != null) "$description: $text" else text
+            }
             .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Box(Modifier.padding(horizontal = 4.dp).horizontalScroll(rememberScrollState()), contentAlignment = Alignment.CenterEnd) {

@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.graph
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,8 +65,10 @@ fun TableScreen(vm: CalcViewModel, onBack: () -> Unit) {
         if (r.step <= 0 || n < 0) emptyList() else (0..minOf(n, 999)).map { r.start + it * r.step }
     }
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Table") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = { IconButton(onClick = { showRange = true }) { Icon(Icons.Default.Tune, contentDescription = "Table range") } },

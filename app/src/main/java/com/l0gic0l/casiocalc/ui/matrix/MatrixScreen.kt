@@ -1,8 +1,13 @@
 package com.l0gic0l.casiocalc.ui.matrix
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.l0gic0l.casiocalc.math.editor.MathRow
 import com.l0gic0l.casiocalc.math.num.Complex
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.ui.CalcViewModel
@@ -44,18 +50,20 @@ import com.l0gic0l.casiocalc.ui.components.EditorPanel
 import com.l0gic0l.casiocalc.ui.components.HeaderCell
 import com.l0gic0l.casiocalc.ui.components.Stepper
 import com.l0gic0l.casiocalc.ui.components.ValueCell
-import com.l0gic0l.casiocalc.ui.components.keypadHeights
+import com.l0gic0l.casiocalc.ui.adaptive.EditSession
+import com.l0gic0l.casiocalc.ui.adaptive.EditorLayout
 import com.l0gic0l.casiocalc.ui.keypad.InputState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatrixScreen(vm: CalcViewModel, onBack: () -> Unit) {
     var selected by rememberSaveable { mutableStateOf<Char?>(null) }
-    @Suppress("UNUSED_VARIABLE") val version = vm.memory.version
     BackHandler(enabled = selected != null) { selected = null }
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text(selected?.let { "Mat $it" } ?: "Matrix") },
                 navigationIcon = {
                     IconButton(onClick = { if (selected != null) selected = null else onBack() }) {
@@ -103,32 +111,48 @@ fun MatrixScreen(vm: CalcViewModel, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
     val formatter = vm.formatter()
     val m = vm.memory.getMatrix(letter)
     val rows = m?.rows ?: 2
     val cols = m?.cols ?: 2
-    var editing by remember(letter) { mutableStateOf<Int?>(null) }
+    val session = remember(letter) { EditSession<Int>() }
     var error by remember { mutableStateOf<String?>(null) }
-    val input = remember(letter, editing) {
-        InputState(editing?.let { i -> m?.let { formatter.format(Value.Num(it.cells[i])) } } ?: com.l0gic0l.casiocalc.math.editor.MathRow())
+    val input = remember(letter, session.shown) {
+        InputState(session.shown?.let { i -> m?.cells?.getOrNull(i)?.let { formatter.format(Value.Num(it)) } } ?: MathRow())
     }
 
     fun resize(r: Int, c: Int) {
         val resized = Value.Mat.build(r, c) { i, j -> if (m != null && i < m.rows && j < m.cols) m[i, j] else Complex.ZERO }
         vm.memory.setMatrix(letter, resized)
-        editing = null
+        session.close()
     }
 
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val heights = keypadHeights(maxHeight).let { (a, b) -> a * 0.9f to b * 0.9f }
-        Column(Modifier.fillMaxSize()) {
-            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    fun commit(index: Int) {
+        val result = vm.evaluateCell(input.row)
+        val v = result.getOrNull()
+        if (v is Value.Num) {
+            val current = vm.memory.getMatrix(letter) ?: Value.Mat.build(rows, cols) { _, _ -> Complex.ZERO }
+            val cells = current.cells.toMutableList()
+            cells[index] = v.z
+            vm.memory.setMatrix(letter, Value.Mat(current.rows, current.cols, cells))
+            error = null
+            // Move on to the next cell, like the calculator.
+            if (index + 1 < current.rows * current.cols) session.open(index + 1) else session.close()
+        } else {
+            error = result.exceptionOrNull()?.let { CalcViewModel.errorMessage(it) } ?: "Dimension ERROR"
+        }
+    }
+
+    EditorLayout(
+        editing = session.current != null,
+        modifier = modifier,
+        content = { contentModifier ->
+            Column(contentModifier.verticalScroll(rememberScrollState()).padding(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Stepper("Rows", rows, 1..10) { resize(it, cols) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Stepper("Columns", cols, 1..10) { resize(rows, it) }
                 }
                 if (m == null) {
@@ -145,13 +169,14 @@ private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
                             for (j in 0 until cols) {
                                 val index = i * cols + j
                                 ValueCell(
-                                    value = Value.Num(m?.cells?.get(index) ?: Complex.ZERO),
+                                    value = Value.Num(m?.cells?.getOrNull(index) ?: Complex.ZERO),
                                     formatter = formatter,
-                                    selected = editing == index,
+                                    selected = session.current == index,
                                     width = 96.dp,
+                                    description = "Mat $letter row ${i + 1} column ${j + 1}",
                                     onClick = {
                                         if (m == null) resize(rows, cols)
-                                        editing = index
+                                        session.open(index)
                                         error = null
                                     },
                                 )
@@ -160,31 +185,20 @@ private fun MatrixEditor(vm: CalcViewModel, letter: Char, modifier: Modifier) {
                     }
                 }
             }
-            val index = editing
-            if (index != null) {
+        },
+        editor = { shape, editorModifier ->
+            session.shown?.let { index ->
                 EditorPanel(
                     vm = vm,
                     title = "Mat $letter  [${index / cols + 1}, ${index % cols + 1}]",
                     input = input,
                     error = error,
-                    keyHeights = heights,
-                    onCancel = { editing = null },
-                    onDone = {
-                        val result = vm.evaluateCell(input.row)
-                        val v = result.getOrNull()
-                        if (v is Value.Num) {
-                            val current = vm.memory.getMatrix(letter) ?: Value.Mat.build(rows, cols) { _, _ -> Complex.ZERO }
-                            val cells = current.cells.toMutableList()
-                            cells[index] = v.z
-                            vm.memory.setMatrix(letter, Value.Mat(current.rows, current.cols, cells))
-                            error = null
-                            editing = if (index + 1 < rows * cols) index + 1 else null
-                        } else {
-                            error = result.exceptionOrNull()?.let { CalcViewModel.errorMessage(it) } ?: "Dimension ERROR"
-                        }
-                    },
+                    shape = shape,
+                    modifier = editorModifier,
+                    onCancel = { session.close() },
+                    onDone = { commit(index) },
                 )
             }
-        }
-    }
+        },
+    )
 }

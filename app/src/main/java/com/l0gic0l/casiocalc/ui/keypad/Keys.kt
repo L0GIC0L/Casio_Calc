@@ -1,5 +1,14 @@
 package com.l0gic0l.casiocalc.ui.keypad
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.DataObject
+import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.l0gic0l.casiocalc.math.editor.MathRow
 import com.l0gic0l.casiocalc.math.editor.Template
 import com.l0gic0l.casiocalc.math.editor.TemplateKind
@@ -35,6 +44,9 @@ sealed interface KeyAction {
 sealed interface KeyLabel {
     data class Text(val text: String) : KeyLabel
     data class Math(val row: MathRow) : KeyLabel
+
+    /** An icon, optionally with a short caption under it; [description] is read by TalkBack. */
+    data class Icon(val image: ImageVector, val description: String, val caption: String? = null) : KeyLabel
 }
 
 enum class KeyStyle { FUNCTION, NUMBER, OPERATOR, DELETE, CLEAR, EXE, SHIFT, ALPHA, NAV }
@@ -62,8 +74,6 @@ object Keys {
     private fun placeholderRow(kind: TemplateKind, vararg prefill: List<Tok>) =
         MathRow(listOf(Template.create(kind, *prefill.map { l -> l.map { TokenNode(it) } }.toTypedArray())))
 
-    private val box = MathRow()
-
     val fractionLabel = placeholderRow(TemplateKind.FRACTION)
     private val sqrtLabel = placeholderRow(TemplateKind.SQRT)
     private val powerLabel = MathRow(listOf(TokenNode(Tokens.letter('X')), Template.create(TemplateKind.POWER)))
@@ -78,10 +88,10 @@ object Keys {
         listOf(
             KeySpec(text("SHIFT"), cmd(Cmd.SHIFT), KeyStyle.SHIFT),
             KeySpec(text("ALPHA"), cmd(Cmd.ALPHA), KeyStyle.ALPHA, shiftLabel = "A-LOCK", shift = cmd(Cmd.ALPHA_LOCK)),
-            KeySpec(text("◀"), cmd(Cmd.LEFT), KeyStyle.NAV, shiftLabel = "|◀", shift = cmd(Cmd.HOME)),
-            KeySpec(text("▲"), cmd(Cmd.UP), KeyStyle.NAV),
-            KeySpec(text("▼"), cmd(Cmd.DOWN), KeyStyle.NAV),
-            KeySpec(text("▶"), cmd(Cmd.RIGHT), KeyStyle.NAV, shiftLabel = "▶|", shift = cmd(Cmd.END)),
+            KeySpec(KeyLabel.Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Left"), cmd(Cmd.LEFT), KeyStyle.NAV, shiftLabel = "|◀", shift = cmd(Cmd.HOME)),
+            KeySpec(KeyLabel.Icon(Icons.Filled.KeyboardArrowUp, "Up"), cmd(Cmd.UP), KeyStyle.NAV),
+            KeySpec(KeyLabel.Icon(Icons.Filled.KeyboardArrowDown, "Down"), cmd(Cmd.DOWN), KeyStyle.NAV),
+            KeySpec(KeyLabel.Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Right"), cmd(Cmd.RIGHT), KeyStyle.NAV, shiftLabel = "▶|", shift = cmd(Cmd.END)),
         ),
         listOf(
             KeySpec(text("X,θ,T"), KeyAction.XVar, alphaLabel = "A", alpha = letter('A')),
@@ -104,8 +114,8 @@ object Keys {
             KeySpec(text(")"), ins(Tokens.RPAREN), shiftLabel = "}", shift = ins(Tokens.RBRACE), alphaLabel = "L", alpha = letter('L')),
         ),
         listOf(
-            KeySpec(text("OPTN"), cmd(Cmd.OPTN), shiftLabel = "SET UP", shift = cmd(Cmd.SETUP)),
-            KeySpec(text("VARS"), cmd(Cmd.VARS)),
+            KeySpec(KeyLabel.Icon(Icons.Filled.Functions, "Options", "OPTN"), cmd(Cmd.OPTN), shiftLabel = "SET UP", shift = cmd(Cmd.SETUP)),
+            KeySpec(KeyLabel.Icon(Icons.Filled.DataObject, "Variables", "VARS"), cmd(Cmd.VARS)),
             KeySpec(text("S⇔D"), cmd(Cmd.SD), shiftLabel = "°′″", shift = ins(Tokens.DMS)),
             KeySpec(text("x⁻¹"), inverse, shiftLabel = "x!", shift = ins(Tokens.FACT), alphaLabel = "M", alpha = letter('M')),
             KeySpec(text(","), ins(Tokens.COMMA), shiftLabel = "=", shift = ins(Tokens.EQ), alphaLabel = "N", alpha = letter('N')),
@@ -120,7 +130,7 @@ object Keys {
                 shiftMath = placeholderRow(TemplateKind.INTEGRAL)),
             KeySpec(text("8"), ins(Tokens.digit(8)), KeyStyle.NUMBER, shiftLabel = "d/dx", shift = tpl(TemplateKind.DERIV), alphaLabel = "Q", alpha = letter('Q')),
             KeySpec(text("9"), ins(Tokens.digit(9)), KeyStyle.NUMBER, shiftLabel = "Σ", shift = tpl(TemplateKind.SUM, listOf(Tokens.letter('X'))), alphaLabel = "R", alpha = letter('R')),
-            KeySpec(text("DEL"), cmd(Cmd.DEL), KeyStyle.DELETE),
+            KeySpec(KeyLabel.Icon(Icons.AutoMirrored.Filled.Backspace, "Delete"), cmd(Cmd.DEL), KeyStyle.DELETE),
             KeySpec(text("AC"), cmd(Cmd.AC), KeyStyle.CLEAR),
         ),
         listOf(
@@ -142,7 +152,7 @@ object Keys {
             KeySpec(text("."), ins(Tokens.POINT), KeyStyle.NUMBER),
             KeySpec(text("×10ˣ"), ins(Tokens.EXP10), KeyStyle.NUMBER, shiftLabel = "π", shift = ins(Tokens.PI)),
             KeySpec(text("(−)"), ins(Tokens.NEG), KeyStyle.NUMBER, shiftLabel = "Ans", shift = ins(Tokens.ANS)),
-            KeySpec(text("EXE"), cmd(Cmd.EXE), KeyStyle.EXE, shiftLabel = "≈", shift = cmd(Cmd.EXE_DECIMAL)),
+            KeySpec(text("="), cmd(Cmd.EXE), KeyStyle.EXE, shiftLabel = "≈", shift = cmd(Cmd.EXE_DECIMAL)),
         ),
     )
 

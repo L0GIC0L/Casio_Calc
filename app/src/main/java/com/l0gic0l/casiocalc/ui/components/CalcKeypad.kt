@@ -6,11 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import com.l0gic0l.casiocalc.math.editor.Tok
 import com.l0gic0l.casiocalc.math.editor.Tokens
 import com.l0gic0l.casiocalc.ui.CalcViewModel
+import com.l0gic0l.casiocalc.ui.adaptive.KeypadShape
 import com.l0gic0l.casiocalc.ui.keypad.Cmd
 import com.l0gic0l.casiocalc.ui.keypad.InputState
 import com.l0gic0l.casiocalc.ui.keypad.KeyAction
@@ -28,8 +27,7 @@ fun CalcKeypad(
     modifier: Modifier = Modifier,
     xVar: Tok = Tokens.X,
     onSetup: () -> Unit = {},
-    functionKeyHeight: Dp = 44.dp,
-    numberKeyHeight: Dp = 52.dp,
+    shape: KeypadShape = KeypadShape.STACKED,
     handle: (KeyAction) -> Cmd? = { a -> if (input.apply(a, xVar)) null else (a as? KeyAction.Command)?.cmd },
 ) {
     var sheet by remember { mutableStateOf<Cmd?>(null) }
@@ -47,9 +45,9 @@ fun CalcKeypad(
         state = input,
         onAction = ::dispatch,
         modifier = modifier,
-        functionKeyHeight = functionKeyHeight,
-        numberKeyHeight = numberKeyHeight,
+        shape = shape,
         haptics = vm.prefs.haptics,
+        showHints = vm.prefs.keyHints,
     )
 
     val insertTok: (Tok) -> Unit = { dispatch(KeyAction.Insert(it)) }

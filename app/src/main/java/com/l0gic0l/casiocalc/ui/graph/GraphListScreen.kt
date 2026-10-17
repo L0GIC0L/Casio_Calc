@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.graph
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -53,7 +56,8 @@ import com.l0gic0l.casiocalc.math.editor.Tokens
 import com.l0gic0l.casiocalc.math.parse.Parser
 import com.l0gic0l.casiocalc.ui.CalcViewModel
 import com.l0gic0l.casiocalc.ui.components.EditorPanel
-import com.l0gic0l.casiocalc.ui.components.keypadHeights
+import com.l0gic0l.casiocalc.ui.adaptive.EditorLayout
+import com.l0gic0l.casiocalc.ui.adaptive.rememberEditSession
 import com.l0gic0l.casiocalc.ui.keypad.InputState
 import com.l0gic0l.casiocalc.ui.math.MathView
 
@@ -62,18 +66,18 @@ private data class Editing(val index: Int, val second: Boolean)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, onTable: () -> Unit, onSettings: () -> Unit) {
-    var editing by remember { mutableStateOf<Editing?>(null) }
+    val session = rememberEditSession<Editing>()
     var showWindow by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val palette = graphPalette()
 
-    val input = remember(editing) {
-        val e = editing
+    val input = remember(session.shown) {
+        val e = session.shown
         InputState(if (e == null) MathRow() else vm.graphFunctions[e.index].let { if (e.second) it.expr2 else it.expr })
     }
 
     fun save() {
-        val e = editing ?: return
+        val e = session.current ?: return
         val row = input.row.copy()
         if (!row.isEmpty) {
             try {
@@ -86,12 +90,14 @@ fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, o
         val f = vm.graphFunctions[e.index]
         vm.setGraphFunction(e.index, if (e.second) f.copy(expr2 = row, enabled = true) else f.copy(expr = row, enabled = true))
         error = null
-        editing = if (f.type == GraphType.PARAM && !e.second) Editing(e.index, true) else null
+        if (f.type == GraphType.PARAM && !e.second) session.open(Editing(e.index, true)) else session.close()
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Graph") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
                 actions = {
@@ -101,27 +107,29 @@ fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, o
             )
         },
         floatingActionButton = {
-            if (editing == null) {
+            if (session.current == null) {
                 ExtendedFloatingActionButton(onClick = onDraw, icon = { Icon(Icons.AutoMirrored.Filled.ShowChart, contentDescription = null) }, text = { Text("Draw") })
             }
         },
     ) { padding ->
-        BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
-            val heights = keypadHeights(maxHeight).let { (a, b) -> a * 0.9f to b * 0.9f }
-            Column(Modifier.fillMaxSize()) {
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 88.dp)) {
+        EditorLayout(
+            editing = session.current != null,
+            modifier = Modifier.padding(padding),
+            content = { m ->
+                LazyColumn(m, contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 88.dp)) {
                     itemsIndexed(vm.graphFunctions) { i, f ->
                         FunctionRow(
                             index = i,
                             vm = vm,
                             colorDot = palette[f.colorIndex % palette.size],
-                            editing = editing,
-                            onEdit = { second -> editing = Editing(i, second); error = null },
+                            editing = session.current,
+                            onEdit = { second -> session.open(Editing(i, second)); error = null },
                         )
                     }
                 }
-                val e = editing
-                if (e != null) {
+            },
+            editor = { shape, m ->
+                session.shown?.let { e ->
                     val f = vm.graphFunctions[e.index]
                     val label = when (f.type) {
                         GraphType.PARAM -> if (e.second) "Yt${e.index + 1}=" else "Xt${e.index + 1}="
@@ -133,10 +141,13 @@ fun GraphListScreen(vm: CalcViewModel, onBack: () -> Unit, onDraw: () -> Unit, o
                         GraphType.PARAM -> Tokens.T
                         GraphType.X -> Tokens.letter('Y')
                     }
-                    EditorPanel(vm, label, input, onDone = ::save, onCancel = { editing = null; error = null }, keyHeights = heights, error = error, xVar = xVar, onSetup = onSettings)
+                    EditorPanel(
+                        vm, label, input, onDone = ::save, onCancel = { session.close(); error = null },
+                        shape = shape, modifier = m, error = error, xVar = xVar, onSetup = onSettings,
+                    )
                 }
-            }
-        }
+            },
+        )
     }
     if (showWindow) ViewWindowDialog(vm, onDismiss = { showWindow = false })
 }

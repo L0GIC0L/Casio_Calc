@@ -1,5 +1,14 @@
 package com.l0gic0l.casiocalc.ui.basen
 
+import androidx.compose.ui.unit.min
+import androidx.compose.material.icons.automirrored.filled.Backspace
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -90,55 +99,64 @@ fun BaseNScreen(vm: CalcViewModel, onBack: () -> Unit) {
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Base-N") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
-                Radix.entries.forEachIndexed { i, r ->
-                    SegmentedButton(
-                        selected = radix == r,
-                        onClick = {
-                            radix = r
-                            text = ""
-                        },
-                        shape = SegmentedButtonDefaults.itemShape(i, Radix.entries.size),
-                    ) { Text(r.label) }
-                }
-            }
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = scheme.surfaceContainerLow,
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(8.dp),
-            ) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(Modifier.horizontalScroll(rememberScrollState())) {
-                        Text(text + "▏", fontSize = 26.sp, fontFamily = FontFamily.Monospace)
+        @Composable
+        fun Display(modifier: Modifier) {
+            Column(modifier) {
+                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                    Radix.entries.forEachIndexed { i, r ->
+                        SegmentedButton(
+                            selected = radix == r,
+                            onClick = {
+                                radix = r
+                                text = ""
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(i, Radix.entries.size),
+                        ) { Text(r.label) }
                     }
-                    error?.let { Text(it, color = scheme.error, style = MaterialTheme.typography.titleMedium) }
-                    result?.let { v ->
-                        for (r in Radix.entries) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(r.label, color = if (r == radix) scheme.primary else scheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
-                                Text(
-                                    BaseN.format(v, r),
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = if (r == radix) 22.sp else 15.sp,
-                                    textAlign = TextAlign.End,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                }
+                Surface(
+                    shape = RoundedCornerShape(28.dp),
+                    color = scheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth().weight(1f).padding(8.dp),
+                ) {
+                    Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            Text(text + "▏", fontSize = 26.sp, fontFamily = FontFamily.Monospace)
+                        }
+                        error?.let { Text(it, color = scheme.error, style = MaterialTheme.typography.titleMedium) }
+                        result?.let { v ->
+                            for (r in Radix.entries) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(r.label, color = if (r == radix) scheme.primary else scheme.onSurfaceVariant, modifier = Modifier.width(48.dp))
+                                    Text(
+                                        BaseN.format(v, r),
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = if (r == radix) 22.sp else 15.sp,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-            Column(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        }
+
+        @Composable
+        fun Keys(modifier: Modifier) {
+            Column(modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (row in keyRows) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(Modifier.weight(if (row.size == 6) 0.85f else 1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         for (k in row) {
                             val enabled = k.digit < 0 || k.digit < radix.base
                             val (bg, fg) = when {
@@ -152,17 +170,37 @@ fun BaseNScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             Surface(
                                 onClick = { press(k) },
                                 enabled = enabled,
-                                shape = RoundedCornerShape(14.dp),
+                                shape = RoundedCornerShape(16.dp),
                                 color = bg,
                                 contentColor = if (enabled) fg else fg.copy(alpha = 0.3f),
-                                modifier = Modifier.weight(if (k.action == "exe") 2f else 1f).height(if (row.size == 6) 42.dp else 50.dp),
+                                modifier = Modifier.weight(if (k.action == "exe") 2f else 1f).fillMaxHeight(),
                             ) {
                                 Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(k.label, fontSize = if (k.label.length > 1 && k.label.all { it.isLetter() }) 15.sp else 20.sp)
+                                    if (k.action == "del") {
+                                        Icon(Icons.AutoMirrored.Filled.Backspace, contentDescription = "Delete")
+                                    } else {
+                                        Text(k.label, fontSize = if (k.label.length > 1 && k.label.all { it.isLetter() }) 15.sp else 20.sp)
+                                    }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+
+        BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
+            val height = maxHeight
+            if (maxWidth > height) {
+                // Landscape: display beside the keys.
+                Row(Modifier.fillMaxSize()) {
+                    Display(Modifier.weight(1f).fillMaxHeight())
+                    Keys(Modifier.weight(1.2f).widthIn(max = 640.dp).fillMaxHeight())
+                }
+            } else {
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Display(Modifier.weight(1f).fillMaxWidth())
+                    Keys(Modifier.widthIn(max = 560.dp).fillMaxWidth().height(min(height * 0.6f, 440.dp)))
                 }
             }
         }

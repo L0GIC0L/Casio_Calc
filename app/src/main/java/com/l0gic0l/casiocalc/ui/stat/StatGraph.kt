@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.stat
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -115,8 +118,10 @@ fun StatGraphScreen(vm: CalcViewModel, onBack: () -> Unit) {
     val measurer = rememberTextMeasurer()
     val reg = vm.lastRegression
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Stat Graph") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )

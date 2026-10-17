@@ -1,5 +1,15 @@
 package com.l0gic0l.casiocalc.ui.graph
 
+import com.l0gic0l.casiocalc.ui.components.ToolButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.AspectRatio
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -170,17 +180,24 @@ fun GraphViewScreen(vm: CalcViewModel, onBack: () -> Unit) {
         picked = if (yPlots.size == needed) yPlots else null
     }
 
+    // In landscape the graph gets the height; the back button moves into the tool bar.
+    val short = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } < 480.dp
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            TopAppBar(
+            if (!short) TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Graph") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
         bottomBar = {
             BottomAppBar {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilledTonalButton(onClick = {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (short) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    }
+                    ToolButton(Icons.Default.TouchApp, "Trace", onClick = {
                         mode = if (mode is Mode.Trace || plots.isEmpty()) Mode.Pan else {
                             val p = plots.first()
                             val w = vm.viewWindow
@@ -190,9 +207,9 @@ fun GraphViewScreen(vm: CalcViewModel, onBack: () -> Unit) {
                                 else -> w.tmin
                             })
                         }
-                    }, modifier = Modifier.weight(1f)) { Text("Trace", maxLines = 1) }
+                    }, modifier = Modifier.weight(1f))
                     Box(Modifier.weight(1f)) {
-                        FilledTonalButton(onClick = { zoomMenu = true }, modifier = Modifier.fillMaxWidth()) { Text("Zoom", maxLines = 1) }
+                        ToolButton(Icons.Default.ZoomIn, "Zoom", onClick = { zoomMenu = true }, modifier = Modifier.fillMaxWidth())
                         DropdownMenu(expanded = zoomMenu, onDismissRequest = { zoomMenu = false }) {
                             val aspect = if (size.width > 0) size.height.toDouble() / size.width else 1.0
                             listOf(
@@ -213,7 +230,7 @@ fun GraphViewScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         }
                     }
                     Box(Modifier.weight(1f)) {
-                        FilledTonalButton(onClick = { solveMenu = true }, modifier = Modifier.fillMaxWidth()) { Text("G-Solv", maxLines = 1) }
+                        ToolButton(Icons.Default.Calculate, "G-Solv", onClick = { solveMenu = true }, modifier = Modifier.fillMaxWidth())
                         DropdownMenu(expanded = solveMenu, onDismissRequest = { solveMenu = false }) {
                             Solve.entries.forEach { s ->
                                 DropdownMenuItem(text = { Text(s.label) }, onClick = {
@@ -223,7 +240,7 @@ fun GraphViewScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             }
                         }
                     }
-                    FilledTonalButton(onClick = { showWindow = true }, modifier = Modifier.weight(1f)) { Text("V-Win", maxLines = 1) }
+                    ToolButton(Icons.Default.AspectRatio, "V-Win", onClick = { showWindow = true }, modifier = Modifier.weight(1f))
                 }
             }
         },

@@ -57,6 +57,8 @@ data class UiPrefs(
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val haptics: Boolean = true,
+    /** Show each key's SHIFT function in small print on the key. */
+    val keyHints: Boolean = true,
     val graphGrid: Boolean = true,
     val graphAxes: Boolean = true,
     val graphLabels: Boolean = true,
@@ -64,7 +66,13 @@ data class UiPrefs(
 
 /** A finished Run-Matrix calculation. S⇔D flips [decimal]. */
 class HistoryEntry(val input: MathRow, val value: Value, val style: Formatter.Style, decimal: Boolean = false) {
+    /** Stable key for lists. */
+    val id: Long = nextId.getAndIncrement()
     var decimal by mutableStateOf(decimal)
+
+    private companion object {
+        val nextId = java.util.concurrent.atomic.AtomicLong()
+    }
 }
 
 /** [Memory] whose changes are observable from Compose and trigger saving. */
@@ -76,6 +84,11 @@ class AppMemory(private val onChange: () -> Unit) : Memory() {
         version++
         onChange()
     }
+
+    // Reading memory also reads [version], so any screen showing memory redraws after a store.
+    override fun getVar(name: String): Value = version.let { super.getVar(name) }
+    override fun getMatrix(c: Char): Value.Mat? = version.let { super.getMatrix(c) }
+    override fun getList(n: Int): Value.Lst? = version.let { super.getList(n) }
 }
 
 @Serializable

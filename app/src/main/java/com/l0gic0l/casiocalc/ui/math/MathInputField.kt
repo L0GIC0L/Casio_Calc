@@ -35,6 +35,7 @@ fun MathInputField(state: InputState, modifier: Modifier = Modifier, fontSize: T
             layout,
             cache,
             cursor = cursor,
+            blinkKey = state.revision,
             onTap = { stop -> state.edit { setCursor(stop.row, stop.index) } },
         )
     }

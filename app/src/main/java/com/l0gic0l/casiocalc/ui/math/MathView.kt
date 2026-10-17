@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -113,10 +114,12 @@ fun MathCanvas(
     modifier: Modifier = Modifier,
     cursor: Pair<MathRow, Int>? = null,
     colors: MathColors = defaultMathColors(),
+    /** Changing this restarts the blink so the cursor is solid right after every edit. */
+    blinkKey: Any? = null,
     onTap: ((CursorStop) -> Unit)? = null,
 ) {
     val density = LocalDensity.current
-    val blink = if (cursor != null) {
+    val blink = if (cursor != null) key(blinkKey) {
         val transition = rememberInfiniteTransition(label = "cursor")
         transition.animateFloat(
             initialValue = 1f,

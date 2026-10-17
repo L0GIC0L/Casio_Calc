@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.recursion
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +53,8 @@ import com.l0gic0l.casiocalc.math.parse.Parser
 import com.l0gic0l.casiocalc.ui.CalcViewModel
 import com.l0gic0l.casiocalc.ui.components.EditorPanel
 import com.l0gic0l.casiocalc.ui.components.NumberFieldsDialog
-import com.l0gic0l.casiocalc.ui.components.keypadHeights
+import com.l0gic0l.casiocalc.ui.adaptive.EditorLayout
+import com.l0gic0l.casiocalc.ui.adaptive.rememberEditSession
 import com.l0gic0l.casiocalc.ui.keypad.InputState
 import com.l0gic0l.casiocalc.ui.math.MathView
 
@@ -66,15 +70,16 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
     var b by remember { mutableStateOf(Sequence(true, MathRow(), MathRow())) }
     var start by remember { mutableIntStateOf(1) }
     var end by remember { mutableIntStateOf(10) }
-    var editing by remember { mutableStateOf<Field?>(null) }
+    val session = rememberEditSession<Field>()
+    val editing = session.current
     var rangeDialog by remember { mutableStateOf(false) }
     var table by remember { mutableStateOf<List<Triple<Int, Value?, Value?>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val formatter = vm.formatter()
 
-    val input = remember(editing) {
+    val input = remember(session.shown) {
         InputState(
-            when (editing) {
+            when (session.shown) {
                 Field.A_EXPR -> a.expr
                 Field.A_FIRST -> a.first
                 Field.B_EXPR -> b.expr
@@ -94,7 +99,7 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
                 return
             }
         }
-        when (editing) {
+        when (session.current) {
             Field.A_EXPR -> a = a.copy(expr = row)
             Field.A_FIRST -> a = a.copy(first = row)
             Field.B_EXPR -> b = b.copy(expr = row)
@@ -102,7 +107,7 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
             null -> {}
         }
         error = null
-        editing = null
+        session.close()
         table = null
     }
 
@@ -143,19 +148,22 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Recursion") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
     ) { padding ->
-        BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
-            val heights = keypadHeights(maxHeight).let { (x, y) -> x * 0.85f to y * 0.85f }
-            Column(Modifier.fillMaxSize()) {
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SequenceCard("a", a, editing, onType = { a = a.copy(recursive = it); table = null }, onEdit = { editing = it }, exprField = Field.A_EXPR, firstField = Field.A_FIRST, start = start)
-                    SequenceCard("b", b, editing, onType = { b = b.copy(recursive = it); table = null }, onEdit = { editing = it }, exprField = Field.B_EXPR, firstField = Field.B_FIRST, start = start)
+        EditorLayout(
+            editing = editing != null,
+            modifier = Modifier.padding(padding),
+            content = { m ->
+                Column(m.verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SequenceCard("a", a, editing, onType = { a = a.copy(recursive = it); table = null }, onEdit = { session.open(it) }, exprField = Field.A_EXPR, firstField = Field.A_FIRST, start = start)
+                    SequenceCard("b", b, editing, onType = { b = b.copy(recursive = it); table = null }, onEdit = { session.open(it) }, exprField = Field.B_EXPR, firstField = Field.B_FIRST, start = start)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AssistChip(onClick = { rangeDialog = true }, label = { Text("n = $start … $end") })
                         Button(onClick = ::compute) { Text("Table") }
@@ -163,23 +171,29 @@ fun RecursionScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     if (editing == null && error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
                     table?.let { rows -> RecursionTable(rows, formatter, a.expr.isEmpty.not(), b.expr.isEmpty.not()) }
                 }
-                if (editing != null) {
-                    Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf(Tokens.SEQ_N, Tokens.SEQ_A, Tokens.SEQ_B).forEach { tok ->
-                            AssistChip(onClick = { input.edit { insert(tok) } }, label = { MathView(MathRow(listOf(com.l0gic0l.casiocalc.math.editor.TokenNode(tok))), fontSize = 16.sp) })
+            },
+            editor = { shape, m ->
+                session.shown?.let { field ->
+                    Column(m) {
+                        Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(Tokens.SEQ_N, Tokens.SEQ_A, Tokens.SEQ_B).forEach { tok ->
+                                AssistChip(onClick = { input.edit { insert(tok) } }, label = { MathView(MathRow(listOf(com.l0gic0l.casiocalc.math.editor.TokenNode(tok))), fontSize = 16.sp) })
+                            }
                         }
+                        val title = when (field) {
+                            Field.A_EXPR -> if (a.recursive) "aₙ₊₁ =" else "aₙ ="
+                            Field.B_EXPR -> if (b.recursive) "bₙ₊₁ =" else "bₙ ="
+                            Field.A_FIRST -> "a at n = $start"
+                            Field.B_FIRST -> "b at n = $start"
+                        }
+                        EditorPanel(
+                            vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null },
+                            shape = shape, modifier = Modifier.weight(1f), error = error, xVar = Tokens.SEQ_N,
+                        )
                     }
-                    val title = when (editing) {
-                        Field.A_EXPR -> if (a.recursive) "aₙ₊₁ =" else "aₙ ="
-                        Field.B_EXPR -> if (b.recursive) "bₙ₊₁ =" else "bₙ ="
-                        Field.A_FIRST -> "a at n = $start"
-                        Field.B_FIRST -> "b at n = $start"
-                        null -> ""
-                    }
-                    EditorPanel(vm, title, input, onDone = ::commit, onCancel = { editing = null; error = null }, keyHeights = heights, error = error, xVar = Tokens.SEQ_N)
                 }
-            }
-        }
+            },
+        )
     }
     if (rangeDialog) {
         NumberFieldsDialog("Range of n", listOf("Start", "End"), listOf(start.toDouble(), end.toDouble()), onDismiss = { rangeDialog = false }) { v ->

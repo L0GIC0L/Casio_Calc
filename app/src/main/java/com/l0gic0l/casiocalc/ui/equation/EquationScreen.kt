@@ -1,5 +1,8 @@
 package com.l0gic0l.casiocalc.ui.equation
 
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,6 +18,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Functions
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -56,7 +67,8 @@ import com.l0gic0l.casiocalc.ui.components.EditorPanel
 import com.l0gic0l.casiocalc.ui.components.HeaderCell
 import com.l0gic0l.casiocalc.ui.components.Stepper
 import com.l0gic0l.casiocalc.ui.components.ValueCell
-import com.l0gic0l.casiocalc.ui.components.keypadHeights
+import com.l0gic0l.casiocalc.ui.adaptive.EditorLayout
+import com.l0gic0l.casiocalc.ui.adaptive.rememberEditSession
 import com.l0gic0l.casiocalc.ui.keypad.InputState
 import com.l0gic0l.casiocalc.ui.math.MathInputField
 import com.l0gic0l.casiocalc.ui.math.MathView
@@ -79,13 +91,14 @@ private fun sub(n: Int) = n.toString().map { subscripts[it - '0'] }.joinToString
 @Composable
 fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var target by remember { mutableStateOf<Target?>(null) }
+    val session = rememberEditSession<Target>()
+    val target = session.current
     var error by remember { mutableStateOf<String?>(null) }
     var outcome by remember(tab) { mutableStateOf<Outcome?>(null) }
     val formatter = vm.formatter()
 
-    val input = remember(target) {
-        val initial = when (val t = target) {
+    val input = remember(session.shown) {
+        val initial = when (val t = session.shown) {
             is Target.Sim -> formatter.format(vm.simCoefficients[t.index])
             is Target.Poly -> formatter.format(vm.polyCoefficients[t.index])
             Target.Equation -> vm.solverEquation
@@ -100,7 +113,7 @@ fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
         if (t == Target.Equation) {
             vm.solverEquation = input.row.copy()
             vm.scheduleSave()
-            target = null
+            session.close()
             outcome = null
             return
         }
@@ -118,19 +131,19 @@ fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
                 val n = vm.simUnknowns
                 val r = t.index / 7
                 val c = t.index % 7
-                target = when {
-                    c < n -> Target.Sim(r * 7 + c + 1)
-                    r + 1 < n -> Target.Sim((r + 1) * 7)
-                    else -> null
+                when {
+                    c < n -> session.open(Target.Sim(r * 7 + c + 1))
+                    r + 1 < n -> session.open(Target.Sim((r + 1) * 7))
+                    else -> session.close()
                 }
             }
             is Target.Poly -> {
                 vm.polyCoefficients[t.index] = v
-                target = if (t.index < vm.polyDegree) Target.Poly(t.index + 1) else null
+                if (t.index < vm.polyDegree) session.open(Target.Poly(t.index + 1)) else session.close()
             }
             is Target.Variable -> {
                 vm.memory.setVar(t.name, v)
-                target = null
+                session.close()
             }
             Target.Equation -> {}
         }
@@ -138,41 +151,66 @@ fun EquationScreen(vm: CalcViewModel, onBack: () -> Unit) {
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Equation") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
     ) { padding ->
-        BoxWithConstraints(Modifier.padding(padding).fillMaxSize()) {
-            val heights = keypadHeights(maxHeight).let { (a, b) -> a * 0.9f to b * 0.9f }
-            Column(Modifier.fillMaxSize()) {
-                PrimaryTabRow(selectedTabIndex = tab) {
-                    listOf("Simultaneous", "Polynomial", "Solver").forEachIndexed { i, title ->
-                        Tab(selected = tab == i, onClick = { tab = i; target = null }, text = { Text(title) })
+        EditorLayout(
+            editing = target != null,
+            modifier = Modifier.padding(padding),
+            content = { m ->
+                Column(m) {
+                    PrimaryTabRow(selectedTabIndex = tab) {
+                        listOf(
+                            Triple("Simultaneous", Icons.Default.GridView, 0),
+                            Triple("Polynomial", Icons.Default.Functions, 1),
+                            Triple("Solver", Icons.Default.Calculate, 2),
+                        ).forEach { (title, icon, i) ->
+                            Tab(
+                                selected = tab == i,
+                                onClick = { tab = i; session.close() },
+                                text = { Text(title, maxLines = 1) },
+                                icon = { Icon(icon, contentDescription = null) },
+                            )
+                        }
+                    }
+                    Column(
+                        Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        val select: (Target) -> Unit = { session.open(it); error = null }
+                        when (tab) {
+                            0 -> Simultaneous(vm, target, onSelect = select, onSolve = { outcome = solveSimultaneous(vm) })
+                            1 -> Polynomial(vm, target, onSelect = select, onSolve = { outcome = solvePolynomial(vm) })
+                            else -> Solver(vm, target, onSelect = select, onSolve = { name -> outcome = solveEquation(vm, name) })
+                        }
+                        outcome?.let { o ->
+                            // Each new result fades in.
+                            key(o) {
+                                val appear = remember { MutableTransitionState(false).apply { targetState = true } }
+                                AnimatedVisibility(appear, enter = fadeIn() + expandVertically()) { ResultCard(o, vm) }
+                            }
+                        }
                     }
                 }
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    when (tab) {
-                        0 -> Simultaneous(vm, target, onSelect = { target = it; error = null }, onSolve = { outcome = solveSimultaneous(vm) })
-                        1 -> Polynomial(vm, target, onSelect = { target = it; error = null }, onSolve = { outcome = solvePolynomial(vm) })
-                        else -> Solver(vm, target, onSelect = { target = it; error = null }, onSolve = { name -> outcome = solveEquation(vm, name) })
-                    }
-                    outcome?.let { ResultCard(it, vm) }
-                }
-                val t = target
-                if (t != null) {
+            },
+            editor = { shape, m ->
+                session.shown?.let { t ->
                     val title = when (t) {
                         is Target.Sim -> "Row ${t.index / 7 + 1}, " + if (t.index % 7 == vm.simUnknowns) "b" else "a${sub(t.index % 7 + 1)}"
                         is Target.Poly -> "Coefficient ${'a' + t.index}"
                         Target.Equation -> "Equation (use = between the sides)"
                         is Target.Variable -> "Value of ${if (t.name == "theta") "θ" else t.name}"
                     }
-                    EditorPanel(vm, title, input, onDone = ::commit, onCancel = { target = null; error = null }, keyHeights = heights, error = error)
+                    EditorPanel(vm, title, input, onDone = ::commit, onCancel = { session.close(); error = null }, shape = shape, modifier = m, error = error)
                 }
-            }
-        }
+            },
+        )
     }
 }
 
@@ -195,7 +233,7 @@ private fun Simultaneous(vm: CalcViewModel, target: Target?, onSelect: (Target) 
             Row {
                 for (c in 0..n) {
                     val index = r * 7 + c
-                    ValueCell(vm.simCoefficients[index], formatter, target == Target.Sim(index), 84.dp, onClick = { onSelect(Target.Sim(index)) })
+                    ValueCell(vm.simCoefficients[index], formatter, target == Target.Sim(index), 84.dp, description = "Row ${r + 1} " + if (c == n) "b" else "a${c + 1}", onClick = { onSelect(Target.Sim(index)) })
                 }
             }
         }
@@ -224,7 +262,7 @@ private fun Polynomial(vm: CalcViewModel, target: Target?, onSelect: (Target) ->
     Column(Modifier.horizontalScroll(rememberScrollState())) {
         Row { for (i in 0..d) HeaderCell("${names[i]}", 84.dp) }
         Row {
-            for (i in 0..d) ValueCell(vm.polyCoefficients[i], formatter, target == Target.Poly(i), 84.dp, onClick = { onSelect(Target.Poly(i)) })
+            for (i in 0..d) ValueCell(vm.polyCoefficients[i], formatter, target == Target.Poly(i), 84.dp, description = "Coefficient ${'a' + i}", onClick = { onSelect(Target.Poly(i)) })
         }
     }
     Button(onClick = onSolve) { Text("Solve") }
@@ -256,7 +294,7 @@ private fun Solver(vm: CalcViewModel, target: Target?, onSelect: (Target) -> Uni
             ) {
                 RadioButton(selected = solveFor == name, onClick = { solveFor = name })
                 Text(if (name == "theta") "θ" else name, fontSize = 18.sp, modifier = Modifier.width(36.dp))
-                ValueCell(vm.memory.getVar(name), vm.formatter(), target == Target.Variable(name), 140.dp, onClick = { onSelect(Target.Variable(name)) })
+                ValueCell(vm.memory.getVar(name), vm.formatter(), target == Target.Variable(name), 140.dp, description = "Value of $name", onClick = { onSelect(Target.Variable(name)) })
             }
         }
         Text(

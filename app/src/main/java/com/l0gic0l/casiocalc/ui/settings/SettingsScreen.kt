@@ -1,5 +1,25 @@
 package com.l0gic0l.casiocalc.ui.settings
 
+import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Numbers
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.Calculate
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import com.l0gic0l.casiocalc.ui.components.appBarInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -52,49 +72,54 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
     val s = vm.settings
     val p = vm.prefs
     Scaffold(
+        contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
             TopAppBar(
+                windowInsets = appBarInsets,
                 title = { Text("Set Up") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") } },
             )
         },
     ) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
-        ) {
-            Section("Calculation")
-            Segmented("Angle", AngleUnit.entries.map { it.label }, s.angle.ordinal) { i ->
-                vm.updateSettings { it.copy(angle = AngleUnit.entries[i]) }
-            }
-            DisplayPicker(s.display) { d -> vm.updateSettings { it.copy(display = d) } }
-            SwitchRow("Engineering notation", "Exponents in multiples of 3", s.eng) { v -> vm.updateSettings { it.copy(eng = v) } }
-            Segmented("Output", listOf("Math (exact)", "Decimal"), if (s.exactOutput) 0 else 1) { i ->
-                vm.updateSettings { it.copy(exactOutput = i == 0) }
-            }
-            Segmented("Fraction result", FracResult.entries.map { it.label }, s.fracResult.ordinal) { i ->
-                vm.updateSettings { it.copy(fracResult = FracResult.entries[i]) }
-            }
-            Segmented("Complex mode", ComplexMode.entries.map { it.label }, s.complex.ordinal) { i ->
-                vm.updateSettings { it.copy(complex = ComplexMode.entries[i]) }
-            }
+        // Settings read best as a column of moderate width, even on unfolded and tablet screens.
+        Box(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().padding(bottom = 24.dp)) {
+                Section("Calculation", Icons.Default.Calculate)
+                Segmented("Angle", AngleUnit.entries.map { it.label }, s.angle.ordinal) { i ->
+                    vm.updateSettings { it.copy(angle = AngleUnit.entries[i]) }
+                }
+                DisplayPicker(s.display) { d -> vm.updateSettings { it.copy(display = d) } }
+                SwitchRow("Engineering notation", "Exponents in multiples of 3", s.eng, Icons.Default.Straighten) { v -> vm.updateSettings { it.copy(eng = v) } }
+                Segmented("Output", listOf("Math (exact)", "Decimal"), if (s.exactOutput) 0 else 1) { i ->
+                    vm.updateSettings { it.copy(exactOutput = i == 0) }
+                }
+                Segmented("Fraction result", FracResult.entries.map { it.label }, s.fracResult.ordinal) { i ->
+                    vm.updateSettings { it.copy(fracResult = FracResult.entries[i]) }
+                }
+                Segmented("Complex mode", ComplexMode.entries.map { it.label }, s.complex.ordinal) { i ->
+                    vm.updateSettings { it.copy(complex = ComplexMode.entries[i]) }
+                }
 
-            Section("Graph")
-            SwitchRow("Grid", null, p.graphGrid) { v -> vm.updatePrefs { it.copy(graphGrid = v) } }
-            SwitchRow("Axes", null, p.graphAxes) { v -> vm.updatePrefs { it.copy(graphAxes = v) } }
-            SwitchRow("Axis labels", null, p.graphLabels) { v -> vm.updatePrefs { it.copy(graphLabels = v) } }
+                Section("Graph", Icons.AutoMirrored.Filled.ShowChart)
+                SwitchRow("Grid", null, p.graphGrid, Icons.Default.GridOn) { v -> vm.updatePrefs { it.copy(graphGrid = v) } }
+                SwitchRow("Axes", null, p.graphAxes, Icons.Default.Add) { v -> vm.updatePrefs { it.copy(graphAxes = v) } }
+                SwitchRow("Axis labels", null, p.graphLabels, Icons.Default.Numbers) { v -> vm.updatePrefs { it.copy(graphLabels = v) } }
 
-            Section("Appearance")
-            Segmented("Theme", listOf("System", "Light", "Dark"), p.theme.ordinal) { i ->
-                vm.updatePrefs { it.copy(theme = ThemeMode.entries[i]) }
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                SwitchRow("Dynamic colour", "Use colours from your wallpaper", p.dynamicColor) { v -> vm.updatePrefs { it.copy(dynamicColor = v) } }
-            }
-            SwitchRow("Key vibration", null, p.haptics) { v -> vm.updatePrefs { it.copy(haptics = v) } }
+                Section("Appearance", Icons.Default.Palette)
+                Segmented("Theme", listOf("System", "Light", "Dark"), p.theme.ordinal) { i ->
+                    vm.updatePrefs { it.copy(theme = ThemeMode.entries[i]) }
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    SwitchRow("Dynamic colour", "Use colours from your wallpaper", p.dynamicColor, Icons.Default.Wallpaper) { v -> vm.updatePrefs { it.copy(dynamicColor = v) } }
+                }
+                SwitchRow("SHIFT labels on keys", "Small print showing each key's SHIFT function", p.keyHints, Icons.Default.Keyboard) { v -> vm.updatePrefs { it.copy(keyHints = v) } }
+                SwitchRow("Key vibration", null, p.haptics, Icons.Default.Vibration) { v -> vm.updatePrefs { it.copy(haptics = v) } }
 
-            Section("Memory")
-            OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
-                Text("Reset variables, lists and matrices")
+                Section("Memory", Icons.Default.Memory)
+                OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+                    Text("Reset variables, lists and matrices")
+                }
             }
         }
     }
@@ -115,14 +140,12 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-private fun Section(title: String) {
+private fun Section(title: String, icon: ImageVector) {
     HorizontalDivider(Modifier.padding(top = 8.dp))
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
-    )
+    Row(Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(end = 8.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+    }
 }
 
 @Composable
@@ -142,8 +165,9 @@ private fun Segmented(label: String, options: List<String>, selected: Int, onSel
 }
 
 @Composable
-private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(title: String, subtitle: String?, checked: Boolean, icon: ImageVector, onChange: (Boolean) -> Unit) {
     ListItem(
+        leadingContent = { Icon(icon, contentDescription = null) },
         headlineContent = { Text(title) },
         supportingContent = subtitle?.let { { Text(it) } },
         trailingContent = { Switch(checked = checked, onCheckedChange = onChange) },
