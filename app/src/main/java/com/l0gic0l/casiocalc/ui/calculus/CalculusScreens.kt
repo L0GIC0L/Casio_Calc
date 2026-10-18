@@ -72,6 +72,13 @@ private const val NOTE = "Angles are in radians. Letters other than X are treate
 
 private val X = Sym.Var(Calculus.X)
 
+/** A typed sum between ∫ and dx is bracketed, as the steps are: ∫(X + 1)dx. */
+private fun integrandRow(row: MathRow): MathRow {
+    val sum = row.nodes.drop(1).any { it is TokenNode && (it.tok == Tokens.ADD || it.tok == Tokens.SUB) }
+    val nodes = row.copy().nodes
+    return MathRow(if (sum) listOf(TokenNode(Tokens.LPAREN)) + nodes + TokenNode(Tokens.RPAREN) else nodes)
+}
+
 /** Worked examples, one per method, written with the solver's own renderer. */
 private val integralExamples: List<MathRow> by lazy {
     val r = Render()
@@ -170,6 +177,10 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
         }
     }
 
+    // The box being edited shows what is typed so far.
+    @Suppress("UNUSED_VARIABLE") val typing = input.revision
+    fun live(field: Field, saved: MathRow) = if (session.current == field) input.row.copy() else saved
+
     val definite = vm.integralDefinite
     val ready = !vm.integrand.isEmpty && (!definite || (!vm.integralLower.isEmpty && !vm.integralUpper.isEmpty))
     CalculusScaffold("Integral", onBack) { m ->
@@ -193,10 +204,13 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             ) { Text(label) }
                         }
                     }
+                    val integrand = integrandRow(live(Field.FUNCTION, vm.integrand))
+                    val lower = live(Field.LOWER, vm.integralLower)
+                    val upper = live(Field.UPPER, vm.integralUpper)
                     val problem = if (definite) {
-                        MathRow(listOf(Template(TemplateKind.INTEGRAL, listOf(vm.integralLower.copy(), vm.integralUpper.copy(), vm.integrand.copy()))))
+                        MathRow(listOf(Template(TemplateKind.INTEGRAL, listOf(lower.copy(), upper.copy(), integrand))))
                     } else {
-                        MathRow(listOf(Template(TemplateKind.INDEF_INTEGRAL, listOf(vm.integrand.copy(), xRow))))
+                        MathRow(listOf(Template(TemplateKind.INDEF_INTEGRAL, listOf(integrand, xRow))))
                     }
                     ProblemCard(
                         "Integrate",
@@ -207,8 +221,8 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     )
                     AnimatedVisibility(definite) {
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            SmallInput("Lower limit a", vm.integralLower, session.current == Field.LOWER, Modifier.weight(1f)) { session.open(Field.LOWER) }
-                            SmallInput("Upper limit b", vm.integralUpper, session.current == Field.UPPER, Modifier.weight(1f)) { session.open(Field.UPPER) }
+                            SmallInput("Lower limit a", lower, session.current == Field.LOWER, Modifier.weight(1f)) { session.open(Field.LOWER) }
+                            SmallInput("Upper limit b", upper, session.current == Field.UPPER, Modifier.weight(1f)) { session.open(Field.UPPER) }
                         }
                     }
                     Actions(
@@ -322,6 +336,9 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
         }
     }
 
+    @Suppress("UNUSED_VARIABLE") val typing = input.revision
+    fun live(field: Field, saved: MathRow) = if (session.current == field) input.row.copy() else saved
+
     val ready = !vm.derivFunction.isEmpty && (!vm.derivAtEnabled || !vm.derivAt.isEmpty)
     CalculusScaffold("Derivative", onBack) { m ->
         EditorLayout(
@@ -347,7 +364,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         listOf(
                             Template(
                                 TemplateKind.DIFF,
-                                listOf(vm.derivFunction.copy(), xRow, MathRow(if (order > 1) listOf(TokenNode(Tokens.digit(order))) else emptyList())),
+                                listOf(live(Field.FUNCTION, vm.derivFunction).copy(), xRow, MathRow(if (order > 1) listOf(TokenNode(Tokens.digit(order))) else emptyList())),
                             ),
                         ),
                     )
@@ -372,7 +389,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         Switch(checked = vm.derivAtEnabled, onCheckedChange = null)
                     }
                     AnimatedVisibility(vm.derivAtEnabled) {
-                        SmallInput("X =", vm.derivAt, session.current == Field.AT, Modifier.fillMaxWidth()) { session.open(Field.AT) }
+                        SmallInput("X =", live(Field.AT, vm.derivAt), session.current == Field.AT, Modifier.fillMaxWidth()) { session.open(Field.AT) }
                     }
                     Actions(
                         canSolve = ready,

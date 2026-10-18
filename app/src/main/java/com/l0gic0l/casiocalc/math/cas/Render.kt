@@ -21,11 +21,14 @@ class Render(private val x: String = "X") {
 
     /** ∫ f dv, without limits. */
     fun integral(f: Sym, v: String = x): MathRow =
-        MathRow(listOf(Template(TemplateKind.INDEF_INTEGRAL, listOf(row(f), MathRow(listOf(differential(v)))))))
+        MathRow(listOf(Template(TemplateKind.INDEF_INTEGRAL, listOf(integrand(f), MathRow(listOf(differential(v)))))))
 
     /** ∫ from a to b of f dx. */
     fun definite(f: Sym, a: MathRow, b: MathRow): MathRow =
-        MathRow(listOf(Template(TemplateKind.INTEGRAL, listOf(a.copy(), b.copy(), row(f)))))
+        MathRow(listOf(Template(TemplateKind.INTEGRAL, listOf(a.copy(), b.copy(), integrand(f)))))
+
+    /** A sum between ∫ and dx is bracketed: ∫(x + 1)dx, not ∫x + 1 dx. */
+    private fun integrand(f: Sym): MathRow = if (f is Sym.Add) MathRow(paren(sum(f))) else row(f)
 
     /** d/dv of f, or dⁿ/dvⁿ when [order] > 1. */
     fun derivative(f: Sym, v: String = x, order: Int = 1): MathRow =
