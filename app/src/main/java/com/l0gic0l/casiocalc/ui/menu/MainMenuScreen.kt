@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.filled.AreaChart
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.GridOn
@@ -81,7 +83,9 @@ val menuEntries = listOf(
     MenuEntry("6", "Matrix", Icons.Default.GridOn, "matrix"),
     MenuEntry("7", "Recursion", Icons.Default.Insights, "recursion"),
     MenuEntry("8", "Base-N", Icons.Default.Memory, "basen"),
-    MenuEntry("9", "Settings", Icons.Default.Settings, "settings"),
+    MenuEntry("9", "Integral", Icons.Default.AreaChart, "integral"),
+    MenuEntry("A", "Derivative", Icons.AutoMirrored.Filled.TrendingUp, "derivative"),
+    MenuEntry("B", "Settings", Icons.Default.Settings, "settings"),
 )
 
 /**

@@ -2,19 +2,30 @@ package com.l0gic0l.casiocalc.ui
 
 import android.app.Application
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
+import com.l0gic0l.casiocalc.data.AccentColor
 import com.l0gic0l.casiocalc.data.GraphFunction
+import com.l0gic0l.casiocalc.data.KeyShape
+import com.l0gic0l.casiocalc.data.KeySpacing
+import com.l0gic0l.casiocalc.data.KeypadSize
+import com.l0gic0l.casiocalc.data.TextScale
+import com.l0gic0l.casiocalc.data.UiPrefs
+import com.l0gic0l.casiocalc.ui.keypad.KeypadLook
+import com.l0gic0l.casiocalc.ui.keypad.LocalKeypadLook
 import com.l0gic0l.casiocalc.data.GraphType
 import com.l0gic0l.casiocalc.math.TestRows.row
 import com.l0gic0l.casiocalc.math.eval.AngleUnit
 import com.l0gic0l.casiocalc.math.num.Complex
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.ui.basen.BaseNScreen
+import com.l0gic0l.casiocalc.ui.calculus.DerivativeScreen
+import com.l0gic0l.casiocalc.ui.calculus.IntegralScreen
 import com.l0gic0l.casiocalc.ui.equation.EquationScreen
 import com.l0gic0l.casiocalc.ui.graph.GraphListScreen
 import com.l0gic0l.casiocalc.ui.graph.GraphViewScreen
@@ -70,7 +81,53 @@ class ModeScreenshotTest {
     @Test fun matrix() = shot("matrix") { MatrixScreen(vm, {}) }
     @Test fun recursion() = shot("recursion") { RecursionScreen(vm, {}) }
     @Test fun baseN() = shot("basen") { BaseNScreen(vm, {}) }
+    @Config(qualifiers = "w411dp-h2600dp-xxhdpi")
     @Test fun settings() = shot("settings") { SettingsScreen(vm, {}) }
+
+    /** Pill keys, roomy spacing, a tall keypad and the teal accent. */
+    @Test fun keypadLook() {
+        val prefs = UiPrefs(keyShape = KeyShape.PILL, keySpacing = KeySpacing.ROOMY, keypadSize = KeypadSize.TALL, accent = AccentColor.TEAL, keyLabels = TextScale.LARGE)
+        compose.setContent {
+            CasioCalcTheme(mode = ThemeMode.LIGHT, dynamicColor = false, accentHue = prefs.accent.hueShift) {
+                CompositionLocalProvider(LocalKeypadLook provides KeypadLook.of(prefs)) { RunScreen(vm, {}, {}) }
+            }
+        }
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("src/test/screenshots/run_keypad_look.png")
+    }
+
+    private fun solved(name: String, done: () -> Boolean, content: @Composable () -> Unit) {
+        compose.setContent { CasioCalcTheme(mode = ThemeMode.LIGHT, dynamicColor = false) { content() } }
+        compose.waitUntil(20_000) { done() }
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("src/test/screenshots/$name.png")
+    }
+
+    @Test fun integral() {
+        vm.integrand = row("X{pow:2}e{pow:X}")
+        vm.solveIntegral()
+        solved("integral", { vm.integralSolution != null }) { IntegralScreen(vm, {}) }
+    }
+
+    // A tall window, to see the whole worked solution.
+    @Config(qualifiers = "w411dp-h1800dp-xxhdpi")
+    @Test fun integralSteps() {
+        vm.integrand = row("{frac:X+5|X{pow:2}+X-2}")
+        vm.integralDefinite = true
+        vm.integralLower = row("2")
+        vm.integralUpper = row("3")
+        vm.solveIntegral()
+        solved("integral_steps", { vm.integralSolution != null }) { IntegralScreen(vm, {}) }
+    }
+
+    @Config(qualifiers = "w411dp-h1400dp-xxhdpi")
+    @Test fun derivative() {
+        vm.derivFunction = row("X{pow:2}sin(X)")
+        vm.derivAtEnabled = true
+        vm.derivAt = row("π")
+        vm.solveDerivative()
+        solved("derivative", { vm.derivativeSolution != null }) { DerivativeScreen(vm, {}) }
+    }
 
     @Test fun polynomial() {
         compose.setContent { CasioCalcTheme(mode = ThemeMode.LIGHT, dynamicColor = false) { EquationScreen(vm, {}) } }

@@ -25,6 +25,8 @@ object RowText {
                     TemplateKind.SUM -> "sum"
                     TemplateKind.PRODUCT -> "prod"
                     TemplateKind.MATRIX -> "mat${n.rows}x${n.cols}"
+                    TemplateKind.INDEF_INTEGRAL -> "indef"
+                    TemplateKind.DIFF -> "diff"
                 }
                 n.slots.joinToString("|", prefix = "{$name:", postfix = "}") { structural(it) }
             }
@@ -53,6 +55,8 @@ object RowText {
                     TemplateKind.MATRIX -> (0 until n.rows).joinToString("", "[", "]") { r ->
                         (0 until n.cols).joinToString(",", "[", "]") { c -> s[r * n.cols + c] }
                     }
+                    TemplateKind.INDEF_INTEGRAL -> "∫(${s[0]})d${s[1].lowercase()}"
+                    TemplateKind.DIFF -> "d${s[2]}/d${s[1].lowercase()}${s[2]}(${s[0]})"
                 }
             }
         }

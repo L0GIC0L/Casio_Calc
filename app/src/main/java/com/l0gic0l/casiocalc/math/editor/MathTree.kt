@@ -58,6 +58,10 @@ enum class TemplateKind(val slotCount: Int) {
     SUM(4),           // variable, start, end, body
     PRODUCT(4),
     MATRIX(0),        // rows × cols cells
+
+    // Display only (solution steps); never typed.
+    INDEF_INTEGRAL(2), // integrand, variable: ∫ f dx
+    DIFF(3),           // expression, variable, order (empty for 1): d/dx (f)
 }
 
 class Template(val kind: TemplateKind, val slots: List<MathRow>, val rows: Int = 0, val cols: Int = 0) : Node() {

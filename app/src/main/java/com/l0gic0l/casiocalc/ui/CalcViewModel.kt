@@ -36,7 +36,12 @@ import com.l0gic0l.casiocalc.ui.keypad.Keys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import com.l0gic0l.casiocalc.math.cas.Calculus
+import com.l0gic0l.casiocalc.math.cas.DerivativeSolution
+import com.l0gic0l.casiocalc.math.cas.IntegralSolution
+import com.l0gic0l.casiocalc.math.cas.UnsupportedInput
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -84,8 +89,86 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
     val polyCoefficients = mutableStateListOf<Value>().apply { repeat(7) { add(Value.of(0)) } }
     var solverEquation by mutableStateOf(MathRow())
 
+    // ---- Integral / Derivative ----------------------------------------------------------------
+    var integrand by mutableStateOf(MathRow())
+    var integralLower by mutableStateOf(MathRow())
+    var integralUpper by mutableStateOf(MathRow())
+    var integralDefinite by mutableStateOf(false)
+    var integralSolution by mutableStateOf<IntegralSolution?>(null)
+        private set
+    var integralError by mutableStateOf<String?>(null)
+        private set
+    var derivFunction by mutableStateOf(MathRow())
+    var derivOrder by mutableIntStateOf(1)
+    var derivAt by mutableStateOf(MathRow())
+    var derivAtEnabled by mutableStateOf(false)
+    var derivativeSolution by mutableStateOf<DerivativeSolution?>(null)
+        private set
+    var derivativeError by mutableStateOf<String?>(null)
+        private set
+    var solving by mutableStateOf(false)
+        private set
+    private var solveJob: Job? = null
+
     init {
         load()
+    }
+
+    /** Works out the integral in the background; gives up after [SOLVE_SECONDS]. */
+    fun solveIntegral() {
+        val f = integrand.copy()
+        if (f.isEmpty) return
+        val lower = if (integralDefinite) integralLower.copy() else null
+        val upper = if (integralDefinite) integralUpper.copy() else null
+        solve(
+            work = { cancelled -> Calculus.integral(f, lower, upper, memory, settings, cancelled) },
+            done = { integralSolution = it; integralError = null },
+            failed = { integralSolution = null; integralError = it },
+        )
+    }
+
+    fun solveDerivative() {
+        val f = derivFunction.copy()
+        if (f.isEmpty) return
+        val at = if (derivAtEnabled) derivAt.copy() else null
+        val order = derivOrder
+        solve(
+            work = { cancelled -> Calculus.derivative(f, order, at, memory, settings, cancelled) },
+            done = { derivativeSolution = it; derivativeError = null },
+            failed = { derivativeSolution = null; derivativeError = it },
+        )
+    }
+
+    private fun <T> solve(work: (() -> Boolean) -> T, done: (T) -> Unit, failed: (String) -> Unit) {
+        solveJob?.cancel()
+        solving = true
+        scheduleSave()
+        solveJob = viewModelScope.launch {
+            val deadline = System.nanoTime() + SOLVE_SECONDS * 1_000_000_000L
+            val result = withContext(Dispatchers.Default) {
+                runCatching { work { System.nanoTime() > deadline || !isActive } }
+            }
+            solving = false
+            result.onSuccess(done).onFailure { e ->
+                failed(
+                    when (e) {
+                        is UnsupportedInput -> e.message ?: "Can't solve this"
+                        is CalcException -> e.kind.message
+                        else -> "Can't solve this"
+                    },
+                )
+            }
+        }
+    }
+
+    fun clearIntegral() {
+        integralSolution = null
+        integralError = null
+    }
+
+    fun clearDerivative() {
+        derivativeSolution = null
+        derivativeError = null
     }
 
     fun updateSettings(transform: (Settings) -> Settings) {
@@ -300,6 +383,14 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         polyDegree = polyDegree,
         polyCoefficients = polyCoefficients.map { Codec.encode(it) },
         solverEquation = Codec.encode(solverEquation),
+        integrand = Codec.encode(integrand),
+        integralLower = Codec.encode(integralLower),
+        integralUpper = Codec.encode(integralUpper),
+        integralDefinite = integralDefinite,
+        derivFunction = Codec.encode(derivFunction),
+        derivOrder = derivOrder,
+        derivAt = Codec.encode(derivAt),
+        derivAtEnabled = derivAtEnabled,
     )
 
     private fun load() {
@@ -330,6 +421,14 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
             polyDegree = state.polyDegree.coerceIn(2, 6)
             state.polyCoefficients.take(polyCoefficients.size).forEachIndexed { i, v -> Codec.decode(v)?.let { polyCoefficients[i] = it } }
             solverEquation = Codec.decode(state.solverEquation)
+            integrand = Codec.decode(state.integrand)
+            integralLower = Codec.decode(state.integralLower)
+            integralUpper = Codec.decode(state.integralUpper)
+            integralDefinite = state.integralDefinite
+            derivFunction = Codec.decode(state.derivFunction)
+            derivOrder = state.derivOrder.coerceIn(1, 3)
+            derivAt = Codec.decode(state.derivAt)
+            derivAtEnabled = state.derivAtEnabled
         }
         if (solverEquation.isEmpty) {
             // A friendly starting equation for the Solver: X² − 2 = 0.
@@ -351,6 +450,7 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         const val GRAPH_SLOTS = 10
         const val GRAPH_COLORS = 6
         const val MAX_HISTORY = 60
+        const val SOLVE_SECONDS = 8L
 
         fun errorMessage(e: Throwable): String = when (e) {
             is CalcException -> e.kind.message

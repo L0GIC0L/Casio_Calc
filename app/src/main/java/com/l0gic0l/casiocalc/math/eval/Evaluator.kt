@@ -335,7 +335,7 @@ class Evaluator(
                 Value.of(Real.Approx(d))
             }
             TemplateKind.SUM, TemplateKind.PRODUCT -> sumOrProduct(t)
-            TemplateKind.POWER, TemplateKind.MATRIX -> argError("template")
+            TemplateKind.POWER, TemplateKind.MATRIX, TemplateKind.INDEF_INTEGRAL, TemplateKind.DIFF -> argError("template")
         }
     }
 

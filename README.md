@@ -9,6 +9,7 @@ radical sign, exponents are raised, and matrices are bracketed grids.
   <img src="app/src/test/screenshots/run_light.png" width="240" alt="Run-Matrix with natural display">
   <img src="app/src/test/screenshots/graph_view.png" width="240" alt="Graph mode">
   <img src="app/src/test/screenshots/equation_poly.png" width="240" alt="Polynomial solver with exact roots">
+  <img src="app/src/test/screenshots/integral.png" width="240" alt="Integral mode with worked steps">
 </p>
 
 ## Features
@@ -23,7 +24,9 @@ radical sign, exponents are raised, and matrices are bracketed grids.
 | **Matrix** | Edit Mat A–Z (up to 10×10). Determinant, transpose, inverse (exact), Ref/Rref, identity, powers. |
 | **Recursion** | Sequences aₙ and bₙ, explicit or recursive, tabulated with exact values. |
 | **Base-N** | 32-bit integer arithmetic in Dec/Hex/Bin/Oct with and/or/xor/xnor/not/Neg; results shown in all four bases. |
-| **Settings** | Deg/Rad/Gra, Norm1/Norm2/Fix/Sci, Eng notation, Math or decimal output, d/c or ab/c fractions, Real/a+bi/r∠θ; theme, dynamic colour, pure black, display text size, particles, reduce motion; SHIFT labels, key vibration and click; keep screen on; graph grid, axes, labels and line thickness; reset memory, history or settings. |
+| **Integral** | Step-by-step antiderivatives in natural display: sum and constant-multiple rules, a table of standard integrals, u-substitution (including u = √x, x = eᵘ and completing the square), partial fractions, integration by parts (including the e^x·sin x kind that comes back round), trigonometric and hyperbolic identities. Every answer is checked by differentiating it. Definite integrals give the exact F(b) − F(a) with its decimal value, and fall back to numerical integration when no antiderivative is found or one does not apply across the interval. |
+| **Derivative** | First, second and third derivatives with the rule used at each step (power, product, quotient, chain, logarithmic differentiation), and the exact value at a point (f′(π) = −π²). |
+| **Settings** | Deg/Rad/Gra, Norm1/Norm2/Fix/Sci, Eng notation, Math or decimal output, d/c or ab/c fractions, Real/a+bi/r∠θ; theme, dynamic colour, accent colour, pure black, display text size, particles, reduce motion; keypad height, key shape, key spacing, key label size, SHIFT labels, key vibration and click; start screen and keep screen on; graph grid, axes, labels and line thickness; reset memory, history or settings. |
 
 Function menus (**OPTN**) cover calculus, numeric (Int, Frac, Intg, Rnd, GCD, LCM, MOD), probability
 (x!, nPr, nCr, Ran#, RanInt#), hyperbolic functions, angle units and °′″, complex functions, matrix
@@ -84,6 +87,10 @@ Requires JDK 17+ and the Android SDK (platform 37). Then:
 Screenshots in `app/src/test/screenshots` are produced by Robolectric/Roborazzi tests:
 `./gradlew testDebugUnitTest -Proborazzi.test.record=true`.
 
+The **Emulator QA** workflow installs the debug APK on an Android emulator and drives it with adb
+(`scripts/qa/emulator-qa.sh`): it solves integrals and derivatives, types one on the keypad, changes
+a keypad setting, and uploads screenshots, UI dumps and logs as the `android-qa-output` artifact.
+
 ## How it works
 
 - `math/editor` — the natural-display input model: a tree of rows and templates with a cursor.
@@ -94,6 +101,8 @@ Screenshots in `app/src/test/screenshots` are produced by Robolectric/Roborazzi 
   plus complex numbers, matrices and lists.
 - `math/eval`, `math/numeric`, `math/graph` — evaluation, exact trigonometry, Gauss–Kronrod
   integration, root finding, polynomial roots, regressions, distributions and G-Solv.
+- `math/cas` — symbolic expressions kept in a simplified canonical form, with derivatives and
+  integrals that record each step for the Integral and Derivative modes.
 
 ## Not included
 

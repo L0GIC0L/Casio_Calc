@@ -1,5 +1,6 @@
 package com.l0gic0l.casiocalc.ui.adaptive
 
+import com.l0gic0l.casiocalc.ui.keypad.LocalKeypadLook
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -156,14 +157,17 @@ fun CalcScreenLayout(
     BoxWithConstraints(modifier.fillMaxSize()) {
         val maxWidth = maxWidth
         val maxHeight = maxHeight
+        val factor = LocalKeypadLook.current.heightFactor
         when (chooseLayout(maxWidth, maxHeight, fold)) {
             CalcLayout.PORTRAIT -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 display(Modifier.weight(1f).fillMaxWidth())
-                keypad(KeypadShape.STACKED, Modifier.widthIn(max = 560.dp).fillMaxWidth().height(portraitKeypadHeight(maxHeight)))
+                val height = (portraitKeypadHeight(maxHeight) * factor).coerceAtMost(maxHeight * 0.7f)
+                keypad(KeypadShape.STACKED, Modifier.widthIn(max = 560.dp).fillMaxWidth().height(height))
             }
             CalcLayout.WIDE -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 display(Modifier.weight(1f).fillMaxWidth())
-                keypad(KeypadShape.WIDE, Modifier.widthIn(max = 1000.dp).fillMaxWidth().height(wideKeypadHeight(maxHeight)))
+                val height = (wideKeypadHeight(maxHeight) * factor).coerceAtMost(maxHeight * 0.66f)
+                keypad(KeypadShape.WIDE, Modifier.widthIn(max = 1000.dp).fillMaxWidth().height(height))
             }
             CalcLayout.BOOK -> HingeSplit(true, fold.hinge, first = display) { m ->
                 Box(m, contentAlignment = Alignment.Center) {
@@ -232,10 +236,11 @@ fun EditorLayout(
                 content(Modifier.weight(1f).fillMaxWidth())
                 val wide = layout != CalcLayout.PORTRAIT
                 // Short landscape windows give the editor the whole height while it is open.
+                val factor = LocalKeypadLook.current.heightFactor
                 val height = when {
                     wide && maxHeight < 420.dp -> maxHeight
-                    wide -> min(maxHeight * 0.62f, 400.dp)
-                    else -> (maxHeight * 0.68f).coerceIn(400.dp, 560.dp).coerceAtMost(maxHeight)
+                    wide -> (min(maxHeight * 0.62f, 400.dp) * factor).coerceAtMost(maxHeight)
+                    else -> ((maxHeight * 0.68f).coerceIn(400.dp, 560.dp) * factor).coerceAtMost(maxHeight)
                 }
                 AnimatedVisibility(
                     visible = editing,

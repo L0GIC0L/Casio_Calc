@@ -1,5 +1,23 @@
 package com.l0gic0l.casiocalc.ui.settings
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Height
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.RoundedCorner
+import androidx.compose.material.icons.filled.SpaceBar
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.l0gic0l.casiocalc.data.AccentColor
+import com.l0gic0l.casiocalc.data.KeyShape
+import com.l0gic0l.casiocalc.data.KeySpacing
+import com.l0gic0l.casiocalc.data.KeypadSize
+import com.l0gic0l.casiocalc.data.StartScreen
+import com.l0gic0l.casiocalc.ui.theme.accentSwatch
+
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,6 +156,10 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         item { SwitchItem("Dynamic colour", "Use colours from your wallpaper", Icons.Default.Wallpaper, p.dynamicColor) { v -> vm.updatePrefs { it.copy(dynamicColor = v) } } }
                     }
+                    item {
+                        val wallpaper = p.dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                        AccentPicker(p.accent, enabled = !wallpaper) { a -> vm.updatePrefs { it.copy(accent = a) } }
+                    }
                     item { SwitchItem("Pure black", "Black background in the dark theme", Icons.Default.Contrast, p.pureBlack) { v -> vm.updatePrefs { it.copy(pureBlack = v) } } }
                     item {
                         Segmented("Display text size", Icons.Default.FormatSize, TextScale.entries.map { it.label }, p.displaySize.ordinal) { i -> vm.updatePrefs { it.copy(displaySize = TextScale.entries[i]) } }
@@ -149,14 +171,22 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     item { SwitchItem("Reduce motion", "Turn off particles and decorative animation", Icons.Default.Animation, p.reduceMotion) { v -> vm.updatePrefs { it.copy(reduceMotion = v) } } }
                 }
 
-                Group("Keypad and screen", Accent.PRIMARY) {
+                Group("Keypad", Accent.PRIMARY) {
+                    item { Segmented("Keypad height", Icons.Default.Height, KeypadSize.entries.map { it.label }, p.keypadSize.ordinal) { i -> vm.updatePrefs { it.copy(keypadSize = KeypadSize.entries[i]) } } }
+                    item { Segmented("Key shape", Icons.Default.RoundedCorner, KeyShape.entries.map { it.label }, p.keyShape.ordinal) { i -> vm.updatePrefs { it.copy(keyShape = KeyShape.entries[i]) } } }
+                    item { Segmented("Key spacing", Icons.Default.SpaceBar, KeySpacing.entries.map { it.label }, p.keySpacing.ordinal) { i -> vm.updatePrefs { it.copy(keySpacing = KeySpacing.entries[i]) } } }
+                    item { Segmented("Key label size", Icons.Default.TextFields, TextScale.entries.map { it.label }, p.keyLabels.ordinal) { i -> vm.updatePrefs { it.copy(keyLabels = TextScale.entries[i]) } } }
                     item { SwitchItem("SHIFT labels", "Each key's SHIFT function in small print above it", Icons.Default.Keyboard, p.keyHints) { v -> vm.updatePrefs { it.copy(keyHints = v) } } }
                     item { SwitchItem("Key vibration", null, Icons.Default.Vibration, p.haptics) { v -> vm.updatePrefs { it.copy(haptics = v) } } }
                     item { SwitchItem("Key click sound", "Needs Touch sounds on in the system sound settings", Icons.AutoMirrored.Filled.VolumeUp, p.keySound) { v -> vm.updatePrefs { it.copy(keySound = v) } } }
+                }
+
+                Group("Screen", Accent.TERTIARY) {
+                    item { Segmented("Open the app on", Icons.Default.Home, StartScreen.entries.map { it.label }, p.startScreen.ordinal) { i -> vm.updatePrefs { it.copy(startScreen = StartScreen.entries[i]) } } }
                     item { SwitchItem("Keep screen on", "While the app is open", Icons.Default.ScreenLockPortrait, p.keepScreenOn) { v -> vm.updatePrefs { it.copy(keepScreenOn = v) } } }
                 }
 
-                Group("Graph", Accent.TERTIARY) {
+                Group("Graph", Accent.SECONDARY) {
                     item { SwitchItem("Grid", null, Icons.Default.GridOn, p.graphGrid) { v -> vm.updatePrefs { it.copy(graphGrid = v) } } }
                     item { SwitchItem("Axes", null, Icons.Default.Add, p.graphAxes) { v -> vm.updatePrefs { it.copy(graphAxes = v) } } }
                     item { SwitchItem("Axis labels", null, Icons.Default.Numbers, p.graphLabels) { v -> vm.updatePrefs { it.copy(graphLabels = v) } } }
@@ -251,6 +281,40 @@ private fun Group(title: String, accent: Accent, build: GroupScope.() -> Unit) {
             )
             Surface(shape = shape, color = MaterialTheme.colorScheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalAccent provides accent) { content() }
+            }
+        }
+    }
+}
+
+/** Colour swatches for the theme colour; with wallpaper colours on they are shown but dimmed. */
+@Composable
+private fun AccentPicker(selected: AccentColor, enabled: Boolean, onPick: (AccentColor) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Default.Palette)
+            Column(Modifier.padding(start = 16.dp)) {
+                Text("Accent colour", style = MaterialTheme.typography.bodyLarge)
+                if (!enabled) {
+                    Text("Turn off Dynamic colour to choose one", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            for (a in AccentColor.entries) {
+                val chosen = a == selected
+                Surface(
+                    onClick = { onPick(a) },
+                    enabled = enabled,
+                    shape = CircleShape,
+                    color = accentSwatch(a.hueShift).copy(alpha = if (enabled) 1f else 0.38f),
+                    border = if (chosen && enabled) BorderStroke(3.dp, MaterialTheme.colorScheme.onSurface) else null,
+                    modifier = Modifier.size(40.dp).semantics {
+                        contentDescription = a.label
+                        this.selected = chosen
+                    },
+                ) {
+                    if (chosen && enabled) Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.padding(8.dp))
+                }
             }
         }
     }

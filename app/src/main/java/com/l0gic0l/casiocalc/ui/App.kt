@@ -21,7 +21,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalView
@@ -38,7 +43,12 @@ import androidx.navigationevent.NavigationEvent
 import com.l0gic0l.casiocalc.ui.adaptive.LocalFold
 import com.l0gic0l.casiocalc.ui.adaptive.LocalScreenSettled
 import com.l0gic0l.casiocalc.ui.adaptive.rememberFold
+import com.l0gic0l.casiocalc.data.StartScreen
 import com.l0gic0l.casiocalc.ui.basen.BaseNScreen
+import com.l0gic0l.casiocalc.ui.keypad.KeypadLook
+import com.l0gic0l.casiocalc.ui.keypad.LocalKeypadLook
+import com.l0gic0l.casiocalc.ui.calculus.DerivativeScreen
+import com.l0gic0l.casiocalc.ui.calculus.IntegralScreen
 import com.l0gic0l.casiocalc.ui.equation.EquationScreen
 import com.l0gic0l.casiocalc.ui.graph.GraphListScreen
 import com.l0gic0l.casiocalc.ui.graph.GraphViewScreen
@@ -101,12 +111,20 @@ private val predictivePopEnter: AnimatedContentTransitionScope<NavBackStackEntry
 @Composable
 fun CasioCalcApp(vm: CalcViewModel = viewModel()) {
     val prefs = vm.prefs
-    CasioCalcTheme(mode = prefs.theme, dynamicColor = prefs.dynamicColor, pureBlack = prefs.pureBlack) {
+    CasioCalcTheme(mode = prefs.theme, dynamicColor = prefs.dynamicColor, pureBlack = prefs.pureBlack, accentHue = prefs.accent.hueShift) {
         val view = LocalView.current
         SideEffect { view.keepScreenOn = prefs.keepScreenOn }
         val nav = rememberNavController()
         val gesture = rememberBackGesture()
-        CompositionLocalProvider(LocalFold provides rememberFold()) {
+        // The menu stays the first screen, so back from the start screen still reaches it.
+        var started by rememberSaveable { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            if (!started) {
+                started = true
+                if (prefs.startScreen != StartScreen.MENU) nav.navigate(prefs.startScreen.route)
+            }
+        }
+        CompositionLocalProvider(LocalFold provides rememberFold(), LocalKeypadLook provides KeypadLook.of(prefs)) {
             NavHost(
                 navController = nav,
                 startDestination = "menu",
@@ -155,6 +173,8 @@ fun CasioCalcApp(vm: CalcViewModel = viewModel()) {
                 screen("matrix", gesture) { MatrixScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
                 screen("recursion", gesture) { RecursionScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
                 screen("basen", gesture) { BaseNScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("integral", gesture) { IntegralScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
+                screen("derivative", gesture) { DerivativeScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
                 screen("settings", gesture) { SettingsScreen(vm, onBack = dropUnlessResumed { nav.popBackStack() }) }
             }
         }
