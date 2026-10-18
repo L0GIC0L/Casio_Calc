@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A stacked fraction "2 over 3", the app's signature natural display. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- numerator 2 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,34 C45,27 63,27 63,34 C63,40 45,46 45,51 L63,51" />
+    <!-- fraction bar -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD54F"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:pathData="M38,57 L70,57" />
+    <!-- denominator 3 -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M46,63 L62,63 L53,71 C60,71 63,74 63,77 C63,83 47,84 45,78" />
+</vector>
