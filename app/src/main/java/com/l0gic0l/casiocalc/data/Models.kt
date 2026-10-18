@@ -55,6 +55,23 @@ data class StatSettings(
 /** Size of the Run-Matrix display text. */
 enum class TextScale(val label: String, val factor: Float) { SMALL("Small", 0.85f), MEDIUM("Medium", 1f), LARGE("Large", 1.2f) }
 
+/** Corners of the keypad's keys. */
+enum class KeyShape(val label: String) { ROUNDED("Rounded"), PILL("Pill"), SQUARE("Square") }
+
+/** Gap between keys. */
+enum class KeySpacing(val label: String, val dp: Float) { TIGHT("Tight", 3f), NORMAL("Normal", 6f), ROOMY("Roomy", 10f) }
+
+/** Height of the keypad relative to the default. */
+enum class KeypadSize(val label: String, val factor: Float) { COMPACT("Compact", 0.86f), NORMAL("Normal", 1f), TALL("Tall", 1.12f) }
+
+/** Theme colour when wallpaper colours are off: the default blue palette turned round the colour wheel. */
+enum class AccentColor(val label: String, val hueShift: Float) {
+    BLUE("Blue", 0f), TEAL("Teal", -48f), GREEN("Green", -92f), ORANGE("Orange", 168f), ROSE("Rose", 118f), PURPLE("Purple", 50f),
+}
+
+/** The screen the app opens on. */
+enum class StartScreen(val label: String, val route: String) { MENU("Main menu", "menu"), RUN("Run-Matrix", "run") }
+
 /** Width of graph lines. */
 enum class LineWeight(val label: String, val dp: Float) { THIN("Thin", 1.5f), NORMAL("Normal", 2.5f), THICK("Thick", 4f) }
 
@@ -79,6 +96,12 @@ data class UiPrefs(
     val graphAxes: Boolean = true,
     val graphLabels: Boolean = true,
     val graphLine: LineWeight = LineWeight.NORMAL,
+    val keyShape: KeyShape = KeyShape.ROUNDED,
+    val keySpacing: KeySpacing = KeySpacing.NORMAL,
+    val keyLabels: TextScale = TextScale.MEDIUM,
+    val keypadSize: KeypadSize = KeypadSize.NORMAL,
+    val accent: AccentColor = AccentColor.BLUE,
+    val startScreen: StartScreen = StartScreen.MENU,
 ) {
     val showParticles get() = particles && !reduceMotion
 }
@@ -137,4 +160,12 @@ data class SavedState(
     val polyDegree: Int = 2,
     val polyCoefficients: List<ValueDto> = emptyList(),
     val solverEquation: List<NodeDto> = emptyList(),
+    val integrand: List<NodeDto> = emptyList(),
+    val integralLower: List<NodeDto> = emptyList(),
+    val integralUpper: List<NodeDto> = emptyList(),
+    val integralDefinite: Boolean = false,
+    val derivFunction: List<NodeDto> = emptyList(),
+    val derivOrder: Int = 1,
+    val derivAt: List<NodeDto> = emptyList(),
+    val derivAtEnabled: Boolean = false,
 )

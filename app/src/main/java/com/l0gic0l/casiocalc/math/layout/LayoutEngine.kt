@@ -288,6 +288,8 @@ class LayoutEngine(private val measure: TextWidth) {
             box
         }
         TemplateKind.INTEGRAL -> integral(t, s)
+        TemplateKind.INDEF_INTEGRAL -> indefiniteIntegral(t, s)
+        TemplateKind.DIFF -> differential(t, s)
         TemplateKind.DERIV, TemplateKind.DERIV2 -> derivative(t, s)
         TemplateKind.SUM, TemplateKind.PRODUCT -> bigOperator(t, s)
         TemplateKind.MATRIX -> matrix(t, s)
@@ -390,6 +392,61 @@ class LayoutEngine(private val measure: TextWidth) {
         box.width = dxX + dxBox.width + s * 0.04f
         box.ascent = max(box.ascent, -top)
         box.descent = max(box.descent, bottom)
+        return box
+    }
+
+    /** ∫ f dv without limits, for solution steps. */
+    private fun indefiniteIntegral(t: Template, s: Float): Box {
+        val body = layoutRow(t.slots[0], s)
+        val axis = s * AXIS
+        val h = max(body.ascent + body.descent + s * 0.5f, s * 1.6f)
+        val top = -axis - h / 2
+        val bottom = -axis + h / 2
+        val signW = s * 0.5f
+        val box = Box()
+        box.ops += DrawOp.IntegralSign(0f, top, bottom, signW, max(1f, s * 0.065f))
+        val bx = signW + s * 0.16f
+        box.place(body, bx, 0f)
+        val d = textBox("d", s, Role.FUNCTION)
+        val v = layoutRow(t.slots[1], s)
+        val dX = bx + body.width + s * 0.14f
+        box.place(d, dX, 0f)
+        box.place(v, dX + d.width, 0f)
+        box.width = dX + d.width + v.width + s * 0.04f
+        box.ascent = max(box.ascent, -top)
+        box.descent = max(box.descent, bottom)
+        return box
+    }
+
+    /** d/dv (f), or dⁿ/dvⁿ (f), for solution steps. */
+    private fun differential(t: Template, s: Float): Box {
+        val order = t.slots[2]
+        val dTop = Box()
+        val d1 = richText("d", s, Role.FUNCTION)
+        dTop.place(d1, 0f, 0f)
+        dTop.width = d1.width
+        if (!order.isEmpty) {
+            val o = layoutRow(order, scriptSize(s))
+            dTop.place(o, d1.width, -s * 0.42f)
+            dTop.width = d1.width + o.width
+        }
+        val dBottom = Box()
+        val d2 = richText("d", s, Role.FUNCTION)
+        val v = layoutRow(t.slots[1], s)
+        dBottom.place(d2, 0f, 0f)
+        dBottom.place(v, d2.width, 0f)
+        dBottom.width = d2.width + v.width
+        if (!order.isEmpty) {
+            val o = layoutRow(order, scriptSize(s))
+            dBottom.place(o, dBottom.width, -s * 0.42f)
+            dBottom.width += o.width
+        }
+        val ddx = fraction(dTop, dBottom, s)
+        val body = delimited(layoutRow(t.slots[0], s), '(', ')', s)
+        val box = Box()
+        box.place(ddx, 0f, 0f)
+        box.place(body, ddx.width + s * 0.06f, 0f)
+        box.width = ddx.width + s * 0.06f + body.width
         return box
     }
 

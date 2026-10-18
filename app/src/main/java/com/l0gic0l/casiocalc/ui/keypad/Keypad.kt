@@ -1,5 +1,6 @@
 package com.l0gic0l.casiocalc.ui.keypad
 
+import com.l0gic0l.casiocalc.data.KeyShape
 import android.view.HapticFeedbackConstants
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -114,11 +115,12 @@ fun Keypad(
                 else -> Hints.INSIDE
             }
             // Labels above the keys already separate the rows.
-            val gap = if (hints == Hints.ABOVE) 2.dp else 6.dp
+            val look = LocalKeypadLook.current
+            val gap = if (hints == Hints.ABOVE) (look.spacing - 4.dp).coerceAtLeast(2.dp) else look.spacing
 
             @Composable
             fun KeyRow(row: List<KeySpec>, rowModifier: Modifier) {
-                Row(rowModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(rowModifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(look.spacing)) {
                     for (spec in row) Key(spec, state, hints, hintSizes, Modifier.weight(1f).fillMaxHeight()) { press(spec) }
                 }
             }
@@ -191,7 +193,13 @@ private fun Key(spec: KeySpec, state: InputState, hints: Hints, hintSizes: HintS
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessHigh),
         label = "keyScale",
     )
-    val corner by animateDpAsState(if (pressed) 28.dp else 16.dp, tween(120), label = "keyCorner")
+    // Pressing rounds a key off, or squares off a pill-shaped one.
+    val (restCorner, pressedCorner) = when (LocalKeypadLook.current.shape) {
+        KeyShape.ROUNDED -> 16.dp to 28.dp
+        KeyShape.PILL -> 100.dp to 16.dp
+        KeyShape.SQUARE -> 6.dp to 14.dp
+    }
+    val corner by animateDpAsState(if (pressed) pressedCorner else restCorner, tween(120), label = "keyCorner")
     val contentAlpha by animateFloatAsState(if (dimmed) 0.4f else 1f, label = "keyDim")
 
     // The hint fades while SHIFT is on, because the key face then shows the same function.
@@ -263,7 +271,7 @@ private fun KeyText(text: String, color: Color, style: KeyStyle) {
         text.length >= 5 -> 12.sp
         text.length >= 4 -> 14.sp
         else -> 18.sp
-    }
+    } * LocalKeypadLook.current.labelScale
     Text(
         text,
         color = color,
@@ -288,7 +296,8 @@ private fun KeyIcon(label: KeyLabel.Icon) {
             KeyAccent.PRIMARY -> MaterialTheme.colorScheme.primary
             KeyAccent.TERTIARY -> MaterialTheme.colorScheme.tertiary
         }
-        Icon(label.image, contentDescription = null, tint = tint, modifier = Modifier.size(if (label.caption == null) 24.dp else 18.dp))
+        val scale = LocalKeypadLook.current.labelScale
+        Icon(label.image, contentDescription = null, tint = tint, modifier = Modifier.size((if (label.caption == null) 24.dp else 18.dp) * scale))
         if (label.caption != null) Text(label.caption, fontSize = 10.sp, lineHeight = 11.sp, maxLines = 1)
     }
 }
@@ -296,6 +305,6 @@ private fun KeyIcon(label: KeyLabel.Icon) {
 @Composable
 private fun KeyMath(row: MathRow, color: Color) {
     CompositionLocalProvider(LocalContentColor provides color) {
-        MathView(row, fontSize = 13.sp, colors = defaultMathColors().copy(normal = color, function = color, operator = color, placeholder = color.copy(alpha = 0.7f)))
+        MathView(row, fontSize = 13.sp * LocalKeypadLook.current.labelScale, colors = defaultMathColors().copy(normal = color, function = color, operator = color, placeholder = color.copy(alpha = 0.7f)))
     }
 }

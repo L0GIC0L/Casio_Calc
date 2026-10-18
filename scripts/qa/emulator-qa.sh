@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+# Drives CG Calc on a running emulator with adb: opens the Integral and Derivative modes, solves
+# examples and typed problems, changes a keypad setting, and records screenshots, UI dumps and logs.
+# Usage: emulator-qa.sh <apk> <output dir>. Exits 1 if any step failed or the app crashed.
+set -u
+APK=$1
+OUT=$2
+PKG=com.l0gic0l.casiocalc
+HERE=$(cd "$(dirname "$0")" && pwd)
+mkdir -p "$OUT"
+FAILS=0
+
+log() { echo "[qa] $*" | tee -a "$OUT/steps.txt"; }
+fail() { log "FAIL: $*"; FAILS=$((FAILS + 1)); }
+dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 && adb pull /sdcard/ui.xml "$OUT/ui.xml" >/dev/null 2>&1; }
+find_node() { python3 "$HERE/ui.py" find "$OUT/ui.xml" "$@"; }
+
+shot() {
+  sleep 1
+  adb exec-out screencap -p >"$OUT/$1.png"
+  dump
+  cp "$OUT/ui.xml" "$OUT/$1.xml"
+  python3 "$HERE/ui.py" summary "$OUT/$1.xml" >"$OUT/$1.txt"
+  log "screenshot $1.png"
+}
+
+# Taps the node whose text or description is $1 (pass --contains to match part of it).
+tap() {
+  for _ in $(seq 1 20); do
+    dump
+    if xy=$(find_node "$@"); then
+      adb shell input tap $xy
+      log "tap '$1' at $xy"
+      sleep 1
+      return 0
+    fi
+    sleep 0.5
+  done
+  fail "'$1' not found to tap"
+  return 1
+}
+
+# Waits up to 30 s for $1 to be on screen.
+expect() {
+  for _ in $(seq 1 30); do
+    dump
+    if find_node "$@" >/dev/null; then
+      log "ok: '$1' is shown"
+      return 0
+    fi
+    sleep 1
+  done
+  fail "'$1' never appeared"
+  return 1
+}
+
+SIZE=$(adb shell wm size | tail -n 1 | sed 's/.*: //' | tr -d '\r')
+W=${SIZE%x*}
+H=${SIZE#*x}
+log "screen ${W}x${H}"
+scroll_down() { adb shell input swipe $((W / 2)) $((H * 3 / 4)) $((W / 2)) $((H / 4)) 400; sleep 1; }
+scroll_up() { adb shell input swipe $((W / 2)) $((H / 4)) $((W / 2)) $((H * 3 / 4)) 400; sleep 1; }
+back() { adb shell input keyevent 4; sleep 1.5; }
+
+adb logcat -c
+adb install -r "$APK" | tee -a "$OUT/steps.txt"
+ACTIVITY=$(adb shell cmd package resolve-activity --brief "$PKG" | tail -n 1 | tr -d '\r')
+log "launch $ACTIVITY"
+adb shell am start -W -n "$ACTIVITY" >/dev/null
+expect "CG Calc" && shot 01-menu
+
+# Integral: a worked example, then the steps below it.
+tap "Integral"
+expect "Integrate" --contains && shot 02-integral-empty
+tap "Examples" && shot 03-integral-examples
+tap "Xe^X"
+expect "Result" && shot 04-integral-result
+scroll_down && shot 05-integral-steps
+scroll_down && shot 06-integral-steps-more
+
+# Type sin(X)² on the keypad and solve it with EXE.
+scroll_up; scroll_up; scroll_up
+tap "Integrate:" --contains
+expect "Execute" && shot 07-integral-editor
+tap "AC"; tap "sin"; tap "X,θ,T"; tap ")"; tap "x²"
+shot 08-integral-typed
+tap "Execute"
+expect "Result" && shot 09-integral-typed-result
+
+# Definite: the example fills in 0 and 1 as limits.
+scroll_up; scroll_up
+tap "Definite"
+tap "Examples"; tap "Xe^X"
+expect "Result" && shot 10-integral-definite
+back
+
+# Derivative: an example with a value at a point, then the second derivative.
+expect "CG Calc"
+tap "Derivative"
+expect "Differentiate" --contains
+tap "Value at a point"
+tap "Examples"; tap "X^2sin(X)"
+expect "Result" && shot 11-derivative
+tap "d²/dx²"
+expect "Result" && shot 12-second-derivative
+back
+
+# Settings: pill-shaped keys, then the Run-Matrix keypad.
+expect "CG Calc"
+tap "Settings"
+for _ in 1 2 3 4 5; do
+  dump
+  find_node "Pill" >/dev/null && break
+  scroll_down
+done
+tap "Pill" && shot 13-settings-keys
+back
+tap "Run-Matrix"
+tap "1"; tap "+"; tap "2"; tap "Execute"
+shot 14-run-pill-keys
+
+# Evidence: logs, crashes and whether the app is still running.
+adb logcat -d >"$OUT/logcat.txt"
+adb logcat -b crash -d >"$OUT/crash.txt"
+PID=$(adb shell pidof -s "$PKG" | tr -d '\r')
+if [ -n "$PID" ]; then
+  adb logcat -d --pid "$PID" >"$OUT/logcat-app.txt"
+  log "app still running (pid $PID)"
+else
+  fail "app is not running at the end"
+fi
+if grep -q "$PKG" "$OUT/crash.txt"; then fail "crash in the crash buffer"; fi
+log "$FAILS failure(s)"
+[ "$FAILS" -eq 0 ]

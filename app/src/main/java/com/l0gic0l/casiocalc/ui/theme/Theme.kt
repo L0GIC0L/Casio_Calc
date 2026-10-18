@@ -63,6 +63,8 @@ fun CasioCalcTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
     dynamicColor: Boolean = true,
     pureBlack: Boolean = false,
+    /** Degrees to turn the built-in palette round the colour wheel; not used with wallpaper colours. */
+    accentHue: Float = 0f,
     content: @Composable () -> Unit,
 ) {
     val dark = when (mode) {
@@ -75,8 +77,8 @@ fun CasioCalcTheme(
             val context = LocalContext.current
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
-        dark -> DarkColors
-        else -> LightColors
+        dark -> DarkColors.rotateHue(accentHue)
+        else -> LightColors.rotateHue(accentHue)
     }.let { if (dark && pureBlack) it.blackened() else it }
     val labels = if (dark) {
         KeyLabelColors(shift = Color(0xFFFFB870), alpha = Color(0xFFFF8A80))
@@ -86,6 +88,41 @@ fun CasioCalcTheme(
     androidx.compose.runtime.CompositionLocalProvider(LocalKeyLabelColors provides labels) {
         MaterialTheme(colorScheme = animateColorScheme(scheme), content = content)
     }
+}
+
+/** This colour turned [degrees] round the colour wheel, keeping its saturation and brightness. */
+private fun Color.turned(degrees: Float): Color {
+    val max = maxOf(red, green, blue)
+    val min = minOf(red, green, blue)
+    val delta = max - min
+    if (delta < 1e-4f) return this
+    val hue = when (max) {
+        red -> 60f * (((green - blue) / delta) % 6f)
+        green -> 60f * ((blue - red) / delta + 2f)
+        else -> 60f * ((red - green) / delta + 4f)
+    }
+    return Color.hsv(((hue + degrees) % 360f + 360f) % 360f, delta / max, max, alpha)
+}
+
+/** The primary colour of the built-in palette turned by [hueShift], for colour swatches. */
+fun accentSwatch(hueShift: Float): Color = LightColors.primary.turned(hueShift)
+
+/** Every colour of the scheme turned [degrees] round the colour wheel. */
+private fun ColorScheme.rotateHue(degrees: Float): ColorScheme {
+    if (degrees == 0f) return this
+    fun Color.r() = turned(degrees)
+    return copy(
+        primary = primary.r(), onPrimary = onPrimary.r(), primaryContainer = primaryContainer.r(), onPrimaryContainer = onPrimaryContainer.r(),
+        inversePrimary = inversePrimary.r(),
+        secondary = secondary.r(), onSecondary = onSecondary.r(), secondaryContainer = secondaryContainer.r(), onSecondaryContainer = onSecondaryContainer.r(),
+        tertiary = tertiary.r(), onTertiary = onTertiary.r(), tertiaryContainer = tertiaryContainer.r(), onTertiaryContainer = onTertiaryContainer.r(),
+        background = background.r(), onBackground = onBackground.r(), surface = surface.r(), onSurface = onSurface.r(),
+        surfaceVariant = surfaceVariant.r(), onSurfaceVariant = onSurfaceVariant.r(), surfaceTint = surfaceTint.r(),
+        outline = outline.r(), outlineVariant = outlineVariant.r(),
+        surfaceBright = surfaceBright.r(), surfaceDim = surfaceDim.r(),
+        surfaceContainerLowest = surfaceContainerLowest.r(), surfaceContainerLow = surfaceContainerLow.r(), surfaceContainer = surfaceContainer.r(),
+        surfaceContainerHigh = surfaceContainerHigh.r(), surfaceContainerHighest = surfaceContainerHighest.r(),
+    )
 }
 
 /** Black background and surfaces, keeping the tonal containers so cards and keys still stand out. */
