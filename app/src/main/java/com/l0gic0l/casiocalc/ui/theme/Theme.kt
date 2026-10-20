@@ -14,6 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 
 private val LightColors = lightColorScheme(
@@ -90,7 +92,12 @@ fun CasioCalcTheme(
     }
 }
 
-/** This colour turned [degrees] round the colour wheel, keeping its saturation and brightness. */
+/**
+ * This colour turned [degrees] round the colour wheel, keeping its saturation and its luminance.
+ * Contrast depends only on luminance, so every pair in the scheme keeps the contrast the blue
+ * palette was made with: a teal at the blue's brightness would be far lighter, too light for
+ * white text.
+ */
 private fun Color.turned(degrees: Float): Color {
     val max = maxOf(red, green, blue)
     val min = minOf(red, green, blue)
@@ -101,7 +108,24 @@ private fun Color.turned(degrees: Float): Color {
         green -> 60f * ((blue - red) / delta + 2f)
         else -> 60f * ((red - green) / delta + 4f)
     }
-    return Color.hsv(((hue + degrees) % 360f + 360f) % 360f, delta / max, max, alpha)
+    val h = ((hue + degrees) % 360f + 360f) % 360f
+    val target = luminance()
+    fun at(value: Float) = Color.hsv(h, delta / max, value, alpha)
+    // A hue darker than this one even at full brightness (a light orange turned blue) is mixed with white instead.
+    val brightest = at(1f)
+    if (brightest.luminance() < target) return lerp(brightest, Color.White, solve { lerp(brightest, Color.White, it).luminance() < target })
+    return at(solve { at(it).luminance() < target })
+}
+
+/** The t in [0, 1] where [below] turns false, by bisection; [below] must go from true to false as t grows. */
+private inline fun solve(below: (Float) -> Boolean): Float {
+    var lo = 0f
+    var hi = 1f
+    repeat(24) {
+        val t = (lo + hi) / 2
+        if (below(t)) lo = t else hi = t
+    }
+    return (lo + hi) / 2
 }
 
 /** The primary colour of the built-in palette turned by [hueShift], for colour swatches. */

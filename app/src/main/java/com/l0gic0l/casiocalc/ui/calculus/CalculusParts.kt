@@ -12,6 +12,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -49,8 +50,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.l0gic0l.casiocalc.math.cas.Render
@@ -111,7 +115,12 @@ internal fun SmallInput(label: String, row: MathRow, selected: Boolean, modifier
 internal fun Actions(canSolve: Boolean, solving: Boolean, examples: List<MathRow>, onSolve: () -> Unit, onClear: () -> Unit, onExample: (MathRow) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Column {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        // Wraps onto a second line with large text or on a narrow screen instead of squeezing Examples.
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
             Button(onClick = onSolve, enabled = canSolve && !solving) {
                 Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                 Text("Solve", modifier = Modifier.padding(start = 6.dp))
@@ -163,12 +172,23 @@ internal fun Appearing(solution: Any, content: @Composable () -> Unit) {
 
 @Composable
 internal fun ResultCard(content: @Composable () -> Unit) {
-    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.fillMaxWidth()) {
+    Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        // TalkBack reads a new answer out when it arrives.
+        modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Result", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSecondaryContainer)
             content()
         }
     }
+}
+
+/** Math in a result or a step, which TalkBack reads in its linear form, as (X^4ln(X))/4. */
+@Composable
+internal fun SpokenMath(row: MathRow, modifier: Modifier = Modifier, fontSize: TextUnit = 24.sp) {
+    ScrollingMath(row, modifier.semantics { contentDescription = RowText.linear(row) }, fontSize = fontSize)
 }
 
 /** A note with a tick (checked) or a warning icon, used under results. */
@@ -195,7 +215,7 @@ internal fun ValueLine(prefix: MathRow, value: Value, formatter: Formatter) {
         MathRow(prefix.copy().nodes.map { it.copy() } + v.nodes)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        ScrollingMath(row, Modifier.weight(1f), fontSize = 24.sp)
+        SpokenMath(row, Modifier.weight(1f), fontSize = 24.sp)
         if (formatter.hasAlternateForm(value)) OutlinedButton(onClick = { decimal = !decimal }) { Text("S⇔D") }
     }
 }
@@ -211,11 +231,11 @@ internal fun ExactValue(prefix: MathRow, symbolic: Sym?, value: Value, formatter
         return
     }
     val exact = remember(prefix, symbolic) { MathRow(prefix.copy().nodes.map { it.copy() } + Render().row(symbolic).nodes) }
-    ScrollingMath(exact, fontSize = 24.sp)
+    SpokenMath(exact, fontSize = 24.sp)
     val approx = remember(value, formatter) {
         MathRow(listOf<Node>(TokenNode(Render.label("≈"))) + formatter.format(value, Formatter.Style.DECIMAL).nodes)
     }
-    ScrollingMath(approx, fontSize = 24.sp)
+    SpokenMath(approx, fontSize = 24.sp)
 }
 
 /** The worked solution: one card of steps, the first two levels open. */
@@ -257,7 +277,7 @@ private fun StepItem(step: Step, depth: Int) {
             }
         }
         step.text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, modifier = Modifier.padding(start = 20.dp)) }
-        for (m in step.math) ScrollingMath(m, Modifier.padding(start = 20.dp, top = 4.dp), fontSize = 20.sp)
+        for (m in step.math) SpokenMath(m, Modifier.padding(start = 20.dp, top = 4.dp), fontSize = 20.sp)
         if (hasDetail) {
             AnimatedVisibility(open, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                 // A line down the left joins a step to its details.

@@ -68,7 +68,6 @@ import com.l0gic0l.casiocalc.ui.adaptive.rememberEditSession
 import com.l0gic0l.casiocalc.ui.components.EditorPanel
 import com.l0gic0l.casiocalc.ui.components.appBarInsets
 import com.l0gic0l.casiocalc.ui.keypad.InputState
-import com.l0gic0l.casiocalc.ui.math.ScrollingMath
 
 private enum class Field { FUNCTION, LOWER, UPPER, AT }
 
@@ -162,10 +161,10 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
         vm.solveIntegral()
     }
 
-    // EXE stores the box and moves on to the next empty one; with nothing left to fill in, it solves.
-    fun commit() {
+    // Keeps what is typed in the open box, so Solve with the keypad still up uses it.
+    fun storeOpen(): Field? {
+        val field = session.current ?: return null
         val row = input.row.copy()
-        val field = session.current ?: return
         when (field) {
             Field.FUNCTION -> vm.integrand = row
             Field.LOWER -> vm.integralLower = row
@@ -173,6 +172,12 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
             Field.AT -> {}
         }
         vm.scheduleSave()
+        return field
+    }
+
+    // EXE stores the box and moves on to the next empty one; with nothing left to fill in, it solves.
+    fun commit() {
+        val field = storeOpen() ?: return
         when {
             vm.integrand.isEmpty -> if (field == Field.FUNCTION) session.close() else session.open(Field.FUNCTION)
             vm.integralDefinite && vm.integralLower.isEmpty -> session.open(Field.LOWER)
@@ -186,7 +191,8 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
     fun live(field: Field, saved: MathRow) = if (session.current == field) input.row.copy() else saved
 
     val definite = vm.integralDefinite
-    val ready = !vm.integrand.isEmpty && (!definite || (!vm.integralLower.isEmpty && !vm.integralUpper.isEmpty))
+    val ready = !live(Field.FUNCTION, vm.integrand).isEmpty &&
+        (!definite || (!live(Field.LOWER, vm.integralLower).isEmpty && !live(Field.UPPER, vm.integralUpper).isEmpty))
     CalculusScaffold("Integral", onBack) { m ->
         EditorLayout(
             editing = session.current != null,
@@ -208,7 +214,8 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             ) { Text(label) }
                         }
                     }
-                    val integrand = integrandRow(live(Field.FUNCTION, vm.integrand))
+                    val typed = live(Field.FUNCTION, vm.integrand)
+                    val integrand = integrandRow(typed)
                     val lower = live(Field.LOWER, vm.integralLower)
                     val upper = live(Field.UPPER, vm.integralUpper)
                     val problem = if (definite) {
@@ -220,7 +227,7 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         "Integrate",
                         problem,
                         selected = session.current == Field.FUNCTION,
-                        description = if (vm.integrand.isEmpty) "empty" else RowText.linear(vm.integrand),
+                        description = if (typed.isEmpty) "empty" else RowText.linear(typed),
                         onClick = { session.open(Field.FUNCTION) },
                     )
                     AnimatedVisibility(definite) {
@@ -233,7 +240,7 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         canSolve = ready,
                         solving = vm.integralSolving,
                         examples = integralExamples.map { it.row },
-                        onSolve = ::solve,
+                        onSolve = { storeOpen(); solve() },
                         onClear = {
                             session.close()
                             vm.integrand = MathRow()
@@ -283,7 +290,7 @@ private fun IntegralResult(s: IntegralSolution, vm: CalcViewModel) {
     ResultCard {
         val anti = s.antiderivative
         if (anti != null) {
-            ScrollingMath(remember(s) { r.equation(r.integral(s.integrand), r.plusC(r.row(anti))) }, fontSize = 24.sp)
+            SpokenMath(remember(s) { r.equation(r.integral(s.integrand), r.plusC(r.row(anti))) }, fontSize = 24.sp)
             if (s.verified) {
                 CheckNote(true, "Checked: differentiating the answer gives back the integrand.")
             } else {
@@ -313,10 +320,10 @@ private fun IntegralResult(s: IntegralSolution, vm: CalcViewModel) {
                     else "Found by numerical integration.",
                 )
             }
-            Definite.Status.PARAMETERS -> d.symbolic?.let { sym -> ScrollingMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
+            Definite.Status.PARAMETERS -> d.symbolic?.let { sym -> SpokenMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
                 ?: CheckNote(false, "No antiderivative was found, and the letters leave no number to give.")
             Definite.Status.TOO_LARGE -> {
-                d.symbolic?.let { sym -> ScrollingMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
+                d.symbolic?.let { sym -> SpokenMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
                 CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
             }
             Definite.Status.DIVERGES -> CheckNote(false, "The integral does not converge: the antiderivative grows without bound inside or at the end of the interval.")
@@ -335,12 +342,18 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
         vm.solveDerivative()
     }
 
-    // EXE stores the box and moves on to the next empty one; with nothing left to fill in, it solves.
-    fun commit() {
-        val field = session.current ?: return
+    // Keeps what is typed in the open box, so Solve with the keypad still up uses it.
+    fun storeOpen(): Field? {
+        val field = session.current ?: return null
         val row = input.row.copy()
         if (field == Field.AT) vm.derivAt = row else vm.derivFunction = row
         vm.scheduleSave()
+        return field
+    }
+
+    // EXE stores the box and moves on to the next empty one; with nothing left to fill in, it solves.
+    fun commit() {
+        val field = storeOpen() ?: return
         when {
             vm.derivFunction.isEmpty -> if (field == Field.FUNCTION) session.close() else session.open(Field.FUNCTION)
             vm.derivAtEnabled && vm.derivAt.isEmpty -> session.open(Field.AT)
@@ -351,7 +364,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
     @Suppress("UNUSED_VARIABLE") val typing = input.revision
     fun live(field: Field, saved: MathRow) = if (session.current == field) input.row.copy() else saved
 
-    val ready = !vm.derivFunction.isEmpty && (!vm.derivAtEnabled || !vm.derivAt.isEmpty)
+    val ready = !live(Field.FUNCTION, vm.derivFunction).isEmpty && (!vm.derivAtEnabled || !live(Field.AT, vm.derivAt).isEmpty)
     CalculusScaffold("Derivative", onBack) { m ->
         EditorLayout(
             editing = session.current != null,
@@ -365,18 +378,22 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                                 onClick = {
                                     vm.derivOrder = i + 1
                                     vm.scheduleSave()
-                                    if (vm.derivativeSolution != null) vm.solveDerivative()
+                                    // A new order re-solves what is shown, even mid-solve; while a box is
+                                    // open, EXE solves with the new order anyway.
+                                    val shown = vm.derivativeSolution != null || vm.derivativeSolving || vm.derivativeError != null
+                                    if (session.current == null && shown) vm.solveDerivative()
                                 },
                                 shape = SegmentedButtonDefaults.itemShape(i, 3),
                             ) { Text(label) }
                         }
                     }
                     val order = vm.derivOrder
+                    val typed = live(Field.FUNCTION, vm.derivFunction)
                     val problem = MathRow(
                         listOf(
                             Template(
                                 TemplateKind.DIFF,
-                                listOf(live(Field.FUNCTION, vm.derivFunction).copy(), xRow, MathRow(if (order > 1) listOf(TokenNode(Tokens.digit(order))) else emptyList())),
+                                listOf(typed.copy(), xRow, MathRow(if (order > 1) listOf(TokenNode(Tokens.digit(order))) else emptyList())),
                             ),
                         ),
                     )
@@ -384,7 +401,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         "Differentiate",
                         problem,
                         selected = session.current == Field.FUNCTION,
-                        description = if (vm.derivFunction.isEmpty) "empty" else RowText.linear(vm.derivFunction),
+                        description = if (typed.isEmpty) "empty" else RowText.linear(typed),
                         onClick = { session.open(Field.FUNCTION) },
                     )
                     // The whole row toggles, so the label is a target too.
@@ -407,7 +424,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                         canSolve = ready,
                         solving = vm.derivativeSolving,
                         examples = derivativeExamples,
-                        onSolve = ::solve,
+                        onSolve = { storeOpen(); solve() },
                         onClear = {
                             session.close()
                             vm.derivFunction = MathRow()
@@ -448,7 +465,7 @@ private fun DerivativeResult(s: DerivativeSolution, vm: CalcViewModel) {
     val r = remember { Render(Calculus.X) }
     val formatter = vm.formatter()
     ResultCard {
-        ScrollingMath(remember(s) { r.equation(r.derivative(s.function, Calculus.X, s.order), r.row(s.derivative)) }, fontSize = 24.sp)
+        SpokenMath(remember(s) { r.equation(r.derivative(s.function, Calculus.X, s.order), r.row(s.derivative)) }, fontSize = 24.sp)
         val at = s.at ?: return@ResultCard
         HorizontalDivider()
         // f′(a) =, with as many primes as the order.
@@ -459,13 +476,13 @@ private fun DerivativeResult(s: DerivativeSolution, vm: CalcViewModel) {
         val value = s.valueAt
         when {
             symbolic == null -> {
-                ScrollingMath(prefix, fontSize = 24.sp)
+                SpokenMath(prefix, fontSize = 24.sp)
                 CheckNote(false, "The derivative is not defined at this point.")
             }
             value != null -> ExactValue(prefix, symbolic, value, formatter)
             else -> {
                 // Letters, or X in the point, leave a formula; otherwise the value is out of range.
-                ScrollingMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
+                SpokenMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
                 if (!symbolic.dependsOn(Calculus.X) && symbolic.otherVariables(Calculus.X).isEmpty()) {
                     CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
                 }

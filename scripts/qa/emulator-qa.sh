@@ -12,15 +12,25 @@ FAILS=0
 
 log() { echo "[qa] $*" | tee -a "$OUT/steps.txt"; }
 fail() { log "FAIL: $*"; FAILS=$((FAILS + 1)); }
-dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 && adb pull /sdcard/ui.xml "$OUT/ui.xml" >/dev/null 2>&1; }
+# A failed dump (common mid-animation) still exits 0 and leaves the last file behind, so both
+# copies are removed first and success is read from what uiautomator prints.
+dump() {
+  rm -f "$OUT/ui.xml"
+  adb shell rm -f /sdcard/ui.xml >/dev/null 2>&1
+  adb shell uiautomator dump /sdcard/ui.xml 2>&1 | grep -q "dumped to" && adb pull /sdcard/ui.xml "$OUT/ui.xml" >/dev/null 2>&1
+}
 find_node() { python3 "$HERE/ui.py" find "$OUT/ui.xml" "$@"; }
 
 shot() {
   sleep 1
   adb exec-out screencap -p >"$OUT/$1.png"
-  dump
-  cp "$OUT/ui.xml" "$OUT/$1.xml"
-  python3 "$HERE/ui.py" summary "$OUT/$1.xml" >"$OUT/$1.txt"
+  for _ in 1 2 3; do dump && break; sleep 1; done
+  if [ -f "$OUT/ui.xml" ]; then
+    cp "$OUT/ui.xml" "$OUT/$1.xml"
+    python3 "$HERE/ui.py" summary "$OUT/$1.xml" >"$OUT/$1.txt"
+  else
+    fail "no UI dump for $1"
+  fi
   log "screenshot $1.png"
 }
 
@@ -63,7 +73,11 @@ scroll_up() { adb shell input swipe $((W / 2)) $((H / 4)) $((W / 2)) $((H * 3 / 
 back() { adb shell input keyevent 4; sleep 1.5; }
 
 adb logcat -c
-adb install -r "$APK" | tee -a "$OUT/steps.txt"
+adb install -r "$APK" >"$OUT/install.txt" 2>&1
+cat "$OUT/install.txt" >>"$OUT/steps.txt"
+if ! grep -q Success "$OUT/install.txt"; then fail "install failed"; exit 1; fi
+# Fresh settings and inputs, so every toggle starts from its default on a reused emulator too.
+adb shell pm clear "$PKG" >/dev/null
 ACTIVITY=$(adb shell cmd package resolve-activity --brief "$PKG" | tail -n 1 | tr -d '\r')
 log "launch $ACTIVITY"
 adb shell am start -W -n "$ACTIVITY" >/dev/null
@@ -85,13 +99,13 @@ expect "Execute" && shot 07-integral-editor
 tap "AC"; tap "sin"; tap "X,θ,T"; tap ")"; tap "x²"
 shot 08-integral-typed
 tap "Execute"
-expect "Result" && shot 09-integral-typed-result
+expect "sin(2X)" --contains && shot 09-integral-typed-result
 
 # Definite: the example fills in 0 and 1 as limits.
 scroll_up; scroll_up
 tap "Definite"
 tap "Examples"; tap "Xe^X"
-expect "Result" && shot 10-integral-definite
+expect "numerical integration agrees" --contains && shot 10-integral-definite
 
 # A pole at the lower limit: ∫ from 0 to 1 of 1/X² has no value, and the card must say so.
 tap "Integrate:" --contains
@@ -106,9 +120,10 @@ tap "Derivative"
 expect "Differentiate" --contains
 tap "Value at a point"
 tap "Examples"; tap "X^2sin(X)"
-expect "Result" && shot 11-derivative
+# f′(1) = cos(1) + 2sin(1); f″(1) = sin(1) + 4cos(1).
+expect "2sin(1)" --contains && shot 11-derivative
 tap "d²/dx²"
-expect "Result" && shot 12-second-derivative
+expect "4cos(1)" --contains && shot 12-second-derivative
 back
 
 # Settings: pill-shaped keys, then the Run-Matrix keypad.

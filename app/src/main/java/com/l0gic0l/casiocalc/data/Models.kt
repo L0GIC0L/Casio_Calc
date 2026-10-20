@@ -83,8 +83,11 @@ data class UiPrefs(
     val pureBlack: Boolean = false,
     /** Drifting particles on the main menu. (The name is kept so saved settings carry over.) */
     val particles: Boolean = true,
-    /** A burst of sparks when a Run-Matrix answer appears. */
-    val resultParticles: Boolean = true,
+    /**
+     * A burst of sparks when a Run-Matrix answer appears. Null in settings saved before this had a
+     * switch of its own, when [particles] covered both; see [answerSparkles].
+     */
+    val resultParticles: Boolean? = null,
     /** Turns off particles and decorative motion. */
     val reduceMotion: Boolean = false,
     val haptics: Boolean = true,
@@ -107,8 +110,9 @@ data class UiPrefs(
     /** Show the value of a simple calculation under the Run-Matrix input while typing. */
     val livePreview: Boolean = true,
 ) {
+    val answerSparkles get() = resultParticles ?: particles
     val showHomeParticles get() = particles && !reduceMotion
-    val showResultParticles get() = resultParticles && !reduceMotion
+    val showResultParticles get() = answerSparkles && !reduceMotion
 }
 
 /** A finished Run-Matrix calculation. S⇔D flips [decimal]. */

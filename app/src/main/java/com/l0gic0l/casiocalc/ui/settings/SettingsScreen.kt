@@ -171,8 +171,8 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                 }
 
                 Group("Motion", Accent.SECONDARY) {
-                    item { SwitchItem("Home screen particles", "Drifting sparks behind the menu", Icons.Default.AutoAwesome, p.particles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(particles = v) } } }
-                    item { SwitchItem("Answer sparkles", "A burst of sparks when a result appears", Icons.Default.Celebration, p.resultParticles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(resultParticles = v) } } }
+                    item { SwitchItem("Home screen particles", "Drifting sparks behind the menu", Icons.Default.AutoAwesome, p.particles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(particles = v, resultParticles = it.answerSparkles) } } }
+                    item { SwitchItem("Answer sparkles", "A burst of sparks when a result appears", Icons.Default.Celebration, p.answerSparkles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(resultParticles = v) } } }
                     item { SwitchItem("Reduce motion", "Turn off particles and decorative animation", Icons.Default.Animation, p.reduceMotion) { v -> vm.updatePrefs { it.copy(reduceMotion = v) } } }
                 }
 
