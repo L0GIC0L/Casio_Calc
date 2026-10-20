@@ -113,8 +113,8 @@ fun MainMenuScreen(prefs: UiPrefs = UiPrefs(), status: String? = null, onOpen: (
     val short = with(LocalDensity.current) { window.height.toDp() } < 480.dp
 
     // The touch watcher sits on the parent: the Scaffold in front would hide touches from the field itself.
-    Box(Modifier.fillMaxSize().background(scheme.background).particleTouch(particles, enabled = prefs.showParticles)) {
-        if (prefs.showParticles) {
+    Box(Modifier.fillMaxSize().background(scheme.background).particleTouch(particles, enabled = prefs.showHomeParticles)) {
+        if (prefs.showHomeParticles) {
             ParticleField(particles, listOf(scheme.primary, scheme.tertiary, scheme.secondary), Modifier.fillMaxSize())
         }
         Scaffold(

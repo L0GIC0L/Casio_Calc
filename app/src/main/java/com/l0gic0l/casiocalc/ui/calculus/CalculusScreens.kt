@@ -34,6 +34,11 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.l0gic0l.casiocalc.math.cas.Calculus
+import com.l0gic0l.casiocalc.math.cas.Definite
+import com.l0gic0l.casiocalc.math.cas.E
+import com.l0gic0l.casiocalc.math.cas.ONE
+import com.l0gic0l.casiocalc.math.cas.PI
+import com.l0gic0l.casiocalc.math.cas.ZERO
 import com.l0gic0l.casiocalc.math.cas.DerivativeSolution
 import com.l0gic0l.casiocalc.math.cas.IntegralSolution
 import com.l0gic0l.casiocalc.math.cas.Render
@@ -79,19 +84,22 @@ private fun integrandRow(row: MathRow): MathRow {
     return MathRow(if (sum) listOf(TokenNode(Tokens.LPAREN)) + nodes + TokenNode(Tokens.RPAREN) else nodes)
 }
 
+/** A worked example and limits it makes sense over, for Definite mode. */
+private class IntegralExample(val row: MathRow, val lower: MathRow, val upper: MathRow)
+
 /** Worked examples, one per method, written with the solver's own renderer. */
-private val integralExamples: List<MathRow> by lazy {
+private val integralExamples: List<IntegralExample> by lazy {
     val r = Render()
     listOf(
-        mul(X, exp(X)),
-        mul(exp(X), fn("sin", X)),
-        mul(num(2), X, fn("cos", pow(X, num(2)))),
-        div(add(X, num(5)), add(pow(X, num(2)), X, num(-2))),
-        pow(fn("sin", X), num(2)),
-        fn("ln", X),
-        div(num(1), sqrt(sub(num(4), pow(X, num(2))))),
-        div(num(1), add(pow(X, num(2)), mul(num(2), X), num(5))),
-    ).map(r::row)
+        Triple(mul(X, exp(X)), ZERO, ONE),
+        Triple(mul(exp(X), fn("sin", X)), ZERO, PI),
+        Triple(mul(num(2), X, fn("cos", pow(X, num(2)))), ZERO, ONE),
+        Triple(div(add(X, num(5)), add(pow(X, num(2)), X, num(-2))), num(2), num(3)),
+        Triple(pow(fn("sin", X), num(2)), ZERO, PI),
+        Triple(fn("ln", X), ONE, E),
+        Triple(div(num(1), sqrt(sub(num(4), pow(X, num(2))))), ZERO, ONE),
+        Triple(div(num(1), add(pow(X, num(2)), mul(num(2), X), num(5))), num(-1), ONE),
+    ).map { (f, a, b) -> IntegralExample(r.row(f), r.row(a), r.row(b)) }
 }
 
 private val derivativeExamples: List<MathRow> by lazy {
@@ -163,16 +171,10 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
             Field.AT -> {}
         }
         vm.scheduleSave()
-        val next = when {
-            vm.integrand.isEmpty -> null
-            !vm.integralDefinite -> null
-            field == Field.FUNCTION && vm.integralLower.isEmpty -> Field.LOWER
-            field != Field.UPPER && vm.integralUpper.isEmpty -> Field.UPPER
-            else -> null
-        }
         when {
-            next != null -> session.open(next)
-            vm.integrand.isEmpty -> session.close()
+            vm.integrand.isEmpty -> if (field == Field.FUNCTION) session.close() else session.open(Field.FUNCTION)
+            vm.integralDefinite && vm.integralLower.isEmpty -> session.open(Field.LOWER)
+            vm.integralDefinite && vm.integralUpper.isEmpty -> session.open(Field.UPPER)
             else -> solve()
         }
     }
@@ -227,8 +229,8 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     }
                     Actions(
                         canSolve = ready,
-                        solving = vm.solving,
-                        examples = integralExamples,
+                        solving = vm.integralSolving,
+                        examples = integralExamples.map { it.row },
                         onSolve = ::solve,
                         onClear = {
                             session.close()
@@ -238,10 +240,11 @@ fun IntegralScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             vm.clearIntegral()
                             vm.scheduleSave()
                         },
-                        onExample = { e ->
-                            vm.integrand = e.copy()
-                            if (definite && vm.integralLower.isEmpty) vm.integralLower = MathRow(listOf(TokenNode(Tokens.digit(0))))
-                            if (definite && vm.integralUpper.isEmpty) vm.integralUpper = MathRow(listOf(TokenNode(Tokens.digit(1))))
+                        onExample = { row ->
+                            val e = integralExamples.first { it.row === row }
+                            vm.integrand = e.row.copy()
+                            vm.integralLower = e.lower.copy()
+                            vm.integralUpper = e.upper.copy()
                             solve()
                         },
                     )
@@ -295,21 +298,23 @@ private fun IntegralResult(s: IntegralSolution, vm: CalcViewModel) {
         HorizontalDivider()
         val left = remember(s) { r.definite(s.integrand, r.row(d.lower), r.row(d.upper)) }
         val eq = MathRow(left.nodes.map { it.copy() } + TokenNode(Tokens.EQ))
-        when {
-            !d.numericOnly && d.value != null -> {
-                ExactValue(eq, d.symbolic, d.value, formatter)
-                if (d.numeric != null) CheckNote(true, "F(b) − F(a) agrees with numerical integration.")
+        when (d.status) {
+            Definite.Status.EXACT -> d.value?.let { v ->
+                ExactValue(eq, d.symbolic, v, formatter)
+                CheckNote(true, if (d.checked) "F(b) − F(a), and numerical integration agrees." else "F(b) − F(a): the antiderivative is continuous on this interval.")
             }
-            d.numeric != null -> {
-                ValueLine(eq, Value.of(Real.Approx(d.numeric)), formatter)
+            Definite.Status.NUMERIC -> d.numeric?.let { v ->
+                ValueLine(eq, Value.of(Real.Approx(v)), formatter)
                 CheckNote(
                     false,
-                    if (anti != null) "F(b) − F(a) does not apply across this interval, so the value was found numerically."
-                    else "Found numerically.",
+                    if (anti != null) "F(b) − F(a) can't be used on this interval, so the value was found numerically."
+                    else "Found by numerical integration.",
                 )
             }
-            d.symbolic != null -> ScrollingMath(remember(s) { r.equation(left, r.row(d.symbolic)) }, fontSize = 24.sp)
-            else -> CheckNote(false, "The integral has no value on this interval.")
+            Definite.Status.PARAMETERS -> d.symbolic?.let { sym -> ScrollingMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
+                ?: CheckNote(false, "No antiderivative was found, and letters other than X leave no number to give.")
+            Definite.Status.DIVERGES -> CheckNote(false, "The integral does not converge: the antiderivative grows without bound inside or at the end of the interval.")
+            Definite.Status.UNKNOWN -> CheckNote(false, "No value was found: numerical integration did not settle, so the integral may not converge.")
         }
     }
 }
@@ -324,14 +329,15 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
         vm.solveDerivative()
     }
 
+    // EXE stores the box and moves on to the next empty one; with nothing left to fill in, it solves.
     fun commit() {
         val field = session.current ?: return
         val row = input.row.copy()
         if (field == Field.AT) vm.derivAt = row else vm.derivFunction = row
         vm.scheduleSave()
         when {
-            vm.derivFunction.isEmpty -> session.close()
-            field == Field.FUNCTION && vm.derivAtEnabled && vm.derivAt.isEmpty -> session.open(Field.AT)
+            vm.derivFunction.isEmpty -> if (field == Field.FUNCTION) session.close() else session.open(Field.FUNCTION)
+            vm.derivAtEnabled && vm.derivAt.isEmpty -> session.open(Field.AT)
             else -> solve()
         }
     }
@@ -393,7 +399,7 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                     }
                     Actions(
                         canSolve = ready,
-                        solving = vm.solving,
+                        solving = vm.derivativeSolving,
                         examples = derivativeExamples,
                         onSolve = ::solve,
                         onClear = {
@@ -443,12 +449,16 @@ private fun DerivativeResult(s: DerivativeSolution, vm: CalcViewModel) {
         val prefix = remember(s) {
             MathRow(listOf(TokenNode(Render.label("f" + "′".repeat(s.order))), TokenNode(Tokens.LPAREN)) + r.row(at).nodes + TokenNode(Tokens.RPAREN) + TokenNode(Tokens.EQ))
         }
+        val symbolic = s.symbolicAt
         val value = s.valueAt
-        if (value != null) {
-            ExactValue(prefix, s.symbolicAt, value, formatter)
-        } else {
-            ScrollingMath(prefix, fontSize = 24.sp)
-            CheckNote(false, "The derivative is not defined at this point.")
+        when {
+            symbolic == null -> {
+                ScrollingMath(prefix, fontSize = 24.sp)
+                CheckNote(false, "The derivative is not defined at this point.")
+            }
+            value != null -> ExactValue(prefix, symbolic, value, formatter)
+            // Letters other than X: the value stays symbolic.
+            else -> ScrollingMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
         }
     }
 }

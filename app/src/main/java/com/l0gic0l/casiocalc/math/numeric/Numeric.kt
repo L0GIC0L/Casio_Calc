@@ -47,8 +47,20 @@ object Numeric {
 
     /** Adaptive Gauss–Kronrod integration of f over [a, b]. */
     fun integrate(f: (Double) -> Double, a: Double, b: Double, tol: Double = 1e-12, check: () -> Unit = {}): Double {
-        if (a == b) return 0.0
-        if (a > b) return -integrate(f, b, a, tol, check)
+        val (value, _) = adaptive(f, a, b, tol, check)
+        if (value.isNaN() || value.isInfinite()) throw CalcException(ErrorKind.MATH, "integral")
+        return value
+    }
+
+    /**
+     * The integral and whether its error estimate reached [tol]. It does not throw: the value is
+     * NaN when f was not finite at a point it sampled, as at a pole.
+     */
+    fun integrateEstimate(f: (Double) -> Double, a: Double, b: Double, tol: Double = 1e-10): Pair<Double, Boolean> = adaptive(f, a, b, tol) {}
+
+    private fun adaptive(f: (Double) -> Double, a: Double, b: Double, tol: Double, check: () -> Unit): Pair<Double, Boolean> {
+        if (a == b) return 0.0 to true
+        if (a > b) return adaptive(f, b, a, tol, check).let { (v, ok) -> -v to ok }
         val segments = java.util.PriorityQueue<Segment>(compareByDescending { it.error })
         val first = gk15(f, a, b)
         segments += first
@@ -67,8 +79,8 @@ object Numeric {
             segments += right
             iterations++
         }
-        if (total.isNaN() || total.isInfinite()) throw CalcException(ErrorKind.MATH, "integral")
-        return segments.sumOf { it.value }
+        if (total.isNaN() || total.isInfinite()) return Double.NaN to false
+        return segments.sumOf { it.value } to (error <= max(tol, tol * abs(total)))
     }
 
     /** First derivative by Ridders' extrapolation of central differences. */

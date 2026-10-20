@@ -3,6 +3,7 @@ package com.l0gic0l.casiocalc.ui
 import android.app.Application
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -16,6 +17,8 @@ import com.l0gic0l.casiocalc.data.KeySpacing
 import com.l0gic0l.casiocalc.data.KeypadSize
 import com.l0gic0l.casiocalc.data.TextScale
 import com.l0gic0l.casiocalc.data.UiPrefs
+import com.l0gic0l.casiocalc.math.editor.Tokens
+import com.l0gic0l.casiocalc.ui.keypad.KeyAction
 import com.l0gic0l.casiocalc.ui.keypad.KeypadLook
 import com.l0gic0l.casiocalc.ui.keypad.LocalKeypadLook
 import com.l0gic0l.casiocalc.data.GraphType
@@ -142,6 +145,17 @@ class ModeScreenshotTest {
         compose.onNodeWithText("OPTN").performClick()
         compose.waitForIdle()
         compose.onRoot().captureRoboImage("src/test/screenshots/optn.png")
+    }
+
+    /** The live preview under a half-finished line: 1÷3+π. */
+    @Test fun runPreview() {
+        listOf(Tokens.digit(1), Tokens.DIV, Tokens.digit(3), Tokens.ADD, Tokens.PI).forEach { vm.runKey(KeyAction.Insert(it)) }
+        // The keys were pressed before Compose was running, so announce the change ourselves.
+        Snapshot.sendApplyNotifications()
+        compose.setContent { CasioCalcTheme(mode = ThemeMode.LIGHT, dynamicColor = false) { RunScreen(vm, {}, {}) } }
+        compose.waitUntil(10_000) { vm.runPreview != null }
+        compose.waitForIdle()
+        compose.onRoot().captureRoboImage("src/test/screenshots/run_preview.png")
     }
 
     @Test fun shiftActive() {

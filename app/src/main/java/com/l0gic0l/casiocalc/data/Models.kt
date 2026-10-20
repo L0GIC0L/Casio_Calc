@@ -81,8 +81,10 @@ data class UiPrefs(
     val dynamicColor: Boolean = true,
     /** Black backgrounds in the dark theme. */
     val pureBlack: Boolean = false,
-    /** Drifting particles on the main menu and a sparkle when a result appears. */
+    /** Drifting particles on the main menu. (The name is kept so saved settings carry over.) */
     val particles: Boolean = true,
+    /** A burst of sparks when a Run-Matrix answer appears. */
+    val resultParticles: Boolean = true,
     /** Turns off particles and decorative motion. */
     val reduceMotion: Boolean = false,
     val haptics: Boolean = true,
@@ -102,8 +104,11 @@ data class UiPrefs(
     val keypadSize: KeypadSize = KeypadSize.NORMAL,
     val accent: AccentColor = AccentColor.BLUE,
     val startScreen: StartScreen = StartScreen.MENU,
+    /** Show the value of a simple calculation under the Run-Matrix input while typing. */
+    val livePreview: Boolean = true,
 ) {
-    val showParticles get() = particles && !reduceMotion
+    val showHomeParticles get() = particles && !reduceMotion
+    val showResultParticles get() = resultParticles && !reduceMotion
 }
 
 /** A finished Run-Matrix calculation. S⇔D flips [decimal]. */

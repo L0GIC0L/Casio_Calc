@@ -1,6 +1,8 @@
 package com.l0gic0l.casiocalc.ui.settings
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.Home
@@ -41,6 +43,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material.icons.filled.Animation
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Contrast
@@ -167,7 +171,8 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                 }
 
                 Group("Motion", Accent.SECONDARY) {
-                    item { SwitchItem("Particles", "Drifting sparks on the home screen and when an answer appears", Icons.Default.AutoAwesome, p.particles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(particles = v) } } }
+                    item { SwitchItem("Home screen particles", "Drifting sparks behind the menu", Icons.Default.AutoAwesome, p.particles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(particles = v) } } }
+                    item { SwitchItem("Answer sparkles", "A burst of sparks when a result appears", Icons.Default.Celebration, p.resultParticles, enabled = !p.reduceMotion) { v -> vm.updatePrefs { it.copy(resultParticles = v) } } }
                     item { SwitchItem("Reduce motion", "Turn off particles and decorative animation", Icons.Default.Animation, p.reduceMotion) { v -> vm.updatePrefs { it.copy(reduceMotion = v) } } }
                 }
 
@@ -183,6 +188,7 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
 
                 Group("Screen", Accent.TERTIARY) {
                     item { Segmented("Open the app on", Icons.Default.Home, StartScreen.entries.map { it.label }, p.startScreen.ordinal) { i -> vm.updatePrefs { it.copy(startScreen = StartScreen.entries[i]) } } }
+                    item { SwitchItem("Live preview", "Show the answer to a simple calculation under the Run-Matrix line as you type", Icons.Default.Visibility, p.livePreview) { v -> vm.updatePrefs { it.copy(livePreview = v) } } }
                     item { SwitchItem("Keep screen on", "While the app is open", Icons.Default.ScreenLockPortrait, p.keepScreenOn) { v -> vm.updatePrefs { it.copy(keepScreenOn = v) } } }
                 }
 
@@ -336,12 +342,14 @@ private fun IconBadge(icon: ImageVector?) {
 
 @Composable
 private fun SwitchItem(title: String, subtitle: String?, icon: ImageVector, checked: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+    // The whole row toggles, as in Android's Settings, so the label is a target too.
     ListItem(
         leadingContent = { IconBadge(icon) },
         headlineContent = { Text(title) },
         supportingContent = subtitle?.let { { Text(it) } },
-        trailingContent = { Switch(checked = checked && enabled, onCheckedChange = onChange, enabled = enabled) },
+        trailingContent = { Switch(checked = checked && enabled, onCheckedChange = null, enabled = enabled) },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        modifier = Modifier.toggleable(checked && enabled, enabled = enabled, role = Role.Switch, onValueChange = onChange),
     )
 }
 

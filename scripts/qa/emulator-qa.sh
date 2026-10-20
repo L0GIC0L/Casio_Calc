@@ -92,6 +92,12 @@ scroll_up; scroll_up
 tap "Definite"
 tap "Examples"; tap "Xe^X"
 expect "Result" && shot 10-integral-definite
+
+# A pole at the lower limit: ∫ from 0 to 1 of 1/X² has no value, and the card must say so.
+tap "Integrate:" --contains
+tap "AC"; tap "1"; tap "÷"; tap "X,θ,T"; tap "x²"
+tap "Execute"
+expect "does not converge" --contains && shot 10b-integral-diverges
 back
 
 # Derivative: an example with a value at a point, then the second derivative.
@@ -108,16 +114,26 @@ back
 # Settings: pill-shaped keys, then the Run-Matrix keypad.
 expect "CG Calc"
 tap "Settings"
-for _ in 1 2 3 4 5; do
-  dump
-  find_node "Pill" >/dev/null && break
-  scroll_down
-done
+# Scrolls down until $1 is on screen.
+scroll_to() {
+  for _ in 1 2 3 4 5 6; do
+    dump
+    find_node "$@" >/dev/null && return 0
+    scroll_down
+  done
+}
+scroll_to "Answer sparkles" --contains
+tap "Answer sparkles" --contains && shot 13a-settings-sparkles-off
+scroll_to "Pill"
 tap "Pill" && shot 13-settings-keys
 back
+
+# Run-Matrix: the live preview shows the answer before EXE.
 tap "Run-Matrix"
-tap "1"; tap "+"; tap "2"; tap "Execute"
-shot 14-run-pill-keys
+tap "1"; tap "+"; tap "2"
+expect "Preview =3" --contains && shot 14-run-preview
+tap "Execute"
+shot 15-run-pill-keys
 
 # Evidence: logs, crashes and whether the app is still running.
 adb logcat -d >"$OUT/logcat.txt"

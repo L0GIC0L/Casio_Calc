@@ -2,6 +2,8 @@ package com.l0gic0l.casiocalc.math
 
 import com.l0gic0l.casiocalc.math.TestRows.row
 import com.l0gic0l.casiocalc.math.cas.Calculus
+import com.l0gic0l.casiocalc.math.cas.Definite
+import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.math.cas.Differentiator
 import com.l0gic0l.casiocalc.math.cas.Render
 import com.l0gic0l.casiocalc.math.cas.Step
@@ -122,15 +124,69 @@ class CasTest {
         Calculus.integral(row("{frac:1|0}"), null, null, memory, settings)
     }
 
+    private fun definite(s: String, a: String, b: String) = Calculus.integral(row(s), row(a), row(b), memory, settings).definite!!
+
     @Test fun definiteIntegralsAreExact() {
         val f = Formatter(settings)
-        fun d(s: String, a: String, b: String) = Calculus.integral(row(s), row(a), row(b), memory, settings).definite!!
-        val sin = d("sin(X)", "0", "π")
-        assertEquals("2", RowText.linear(f.format(sin.value!!)))
-        val third = d("X{pow:2}", "0", "1")
-        assertEquals("1/3", RowText.linear(f.format(third.value!!)))
-        val log = d("{frac:1|X}", "1", "e")
-        assertEquals("1", RowText.linear(f.format(log.value!!)))
-        assertNotNull(d("e{pow:~X{pow:2}}", "0", "1").numeric)
+        fun exact(s: String, a: String, b: String): String {
+            val d = definite(s, a, b)
+            assertEquals(s, Definite.Status.EXACT, d.status)
+            return RowText.linear(f.format(d.value!!))
+        }
+        assertEquals("2", exact("sin(X)", "0", "π"))
+        assertEquals("1/3", exact("X{pow:2}", "0", "1"))
+        assertEquals("1", exact("{frac:1|X}", "1", "e"))
+        val gauss = definite("e{pow:~X{pow:2}}", "0", "1")
+        assertEquals(Definite.Status.NUMERIC, gauss.status)
+        assertEquals(0.746824, gauss.numeric!!, 1e-6)
+    }
+
+    /** A pole of the integrand inside or at the end of the interval: no finite value, and none is shown. */
+    @Test fun divergentIntegralsSaySo() {
+        for ((s, a, b) in listOf(
+            Triple("{frac:1|X{pow:2}}", "~1", "1"),
+            Triple("{frac:1|X}", "0", "1"),
+            Triple("{frac:X+5|X{pow:2}+X-2}", "0", "1"),
+        )) {
+            val d = definite(s, a, b)
+            assertEquals("$s on [$a, $b]", Definite.Status.DIVERGES, d.status)
+        }
+    }
+
+    /** Improper but convergent, or hard for quadrature: F(b) − F(a) still applies because F is continuous. */
+    @Test fun continuousAntiderivativesGiveExactValues() {
+        fun value(s: String, a: String, b: String): Double {
+            val d = definite(s, a, b)
+            assertEquals("$s on [$a, $b]", Definite.Status.EXACT, d.status)
+            return (d.value as Value.Num).z.re.toDouble()
+        }
+        assertEquals(0.0, value("{frac:1|{root:3|X}}", "~1", "1"), 1e-9)
+        assertEquals(-1.0, value("ln(X)", "0", "1"), 1e-9)
+        val start = System.nanoTime()
+        assertEquals(Math.sin(25000.0) / 50, value("cos(50X)", "0", "500"), 1e-9)
+        val seconds = (System.nanoTime() - start) / 1e9
+        assertTrue("took $seconds s", seconds < 3)
+    }
+
+    @Test fun lettersLeaveDefiniteIntegralsSymbolic() {
+        val d = definite("A*e{pow:X{pow:2}}", "0", "1")
+        assertEquals(Definite.Status.PARAMETERS, d.status)
+        assertEquals(null, d.symbolic)
+    }
+
+    @Test fun derivativeValueAtAPoint() {
+        fun at(s: String, p: String) = Calculus.derivative(row(s), 1, row(p), memory, settings)
+        // x/|x| at 0 would simplify to 0·0⁻¹ = 0; it is not defined there.
+        val abs = at("{abs:X}", "0")
+        assertEquals(null, abs.symbolicAt)
+        assertEquals(null, abs.valueAt)
+        // A stays a letter, whatever is stored in A.
+        memory.setVar("A", Value.of(5))
+        val param = at("AX{pow:2}", "1")
+        assertEquals("2A", text(param.symbolicAt!!))
+        assertEquals(null, param.valueAt)
+        val pi = at("X{pow:2}sin(X)", "π")
+        assertEquals("−π^2", text(pi.symbolicAt!!))
+        assertEquals(-Math.PI * Math.PI, (pi.valueAt as Value.Num).z.re.toDouble(), 1e-9)
     }
 }
