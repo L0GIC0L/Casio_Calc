@@ -233,7 +233,7 @@ private fun LivePreview(vm: CalcViewModel, formatter: Formatter, fontSize: TextU
     val input = vm.runInput.row
     @Suppress("UNUSED_VARIABLE") val typing = vm.runInput.revision
     val result = remember(value, formatter) { value?.let { formatter.format(it) } }
-    val visible = result != null && !vm.computing && vm.runError == null && RowText.linear(result) != RowText.linear(input)
+    val visible = result != null && vm.prefs.livePreview && !vm.computing && vm.runError == null && RowText.linear(result) != RowText.linear(input)
     // Keeps the last value on screen while it fades out.
     var shown by remember { mutableStateOf<MathRow?>(null) }
     if (visible) shown = result

@@ -75,6 +75,18 @@ class CalculatorTest {
         assertEquals("1", calc("2<3"))
     }
 
+    @Test fun bigCombinationsAndExponents() {
+        assertEquals("499500", calc("1000nCr998"))
+        assertEquals("155117520", calc("30nCr15"))
+        // Out of range: found from the size alone instead of multiplying out 300000 factors.
+        val start = System.nanoTime()
+        assertEquals(ErrorKind.MATH, error("1000000nCr300000"))
+        assertEquals(ErrorKind.MATH, error("2000000000nPr1000000000"))
+        assertTrue((System.nanoTime() - start) / 1_000_000 < 1000)
+        assertEquals(ErrorKind.SYNTAX, error("1#~9999999"))
+        assertEquals(ErrorKind.SYNTAX, error("1#401"))
+    }
+
     @Test fun trigExact() {
         assertEquals("{frac:1|2}", calc("sin(30)"))
         assertEquals("{frac:{sqrt:3}|2}", calc("sin(60)"))

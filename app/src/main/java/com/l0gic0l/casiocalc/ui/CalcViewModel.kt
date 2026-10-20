@@ -41,6 +41,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import com.l0gic0l.casiocalc.math.cas.Calculus
 import com.l0gic0l.casiocalc.math.cas.DerivativeSolution
@@ -132,18 +133,25 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun refreshPreview() {
-        val row = runInput.row.copy()
-        val expr = if (prefs.livePreview && !row.isEmpty) runCatching { Parser.parse(row) }.getOrNull() else null
-        if (expr == null || !Preview.worthShowing(expr)) {
+        if (!prefs.livePreview || runInput.row.isEmpty) {
             runPreview = null
             return
         }
-        // The old preview stays up until the new one is ready, so it does not flicker while typing.
+        val row = runInput.row.copy()
         val currentSettings = settings
-        val deadline = System.nanoTime() + PREVIEW_LIMIT_MS * 1_000_000
-        // The evaluator on its own, not Calculator.evaluate: a preview must not change Ans.
+        val ansIsNumber = memory.ans is Value.Num
+        // The old preview stays up until the new one is ready, so it does not flicker while typing.
+        // Parsing runs off the main thread too, and the evaluator stops at the time limit or as soon
+        // as the next keystroke cancels this job.
         runPreview = withContext(Dispatchers.Default) {
-            runCatching { Calculator.evaluator(expr, memory, currentSettings) { System.nanoTime() > deadline }.eval(expr) }.getOrNull()
+            val job = coroutineContext.job
+            val deadline = System.nanoTime() + PREVIEW_LIMIT_MS * 1_000_000
+            runCatching {
+                val expr = Parser.parse(row)
+                // The evaluator on its own, not Calculator.evaluate: a preview must not change Ans.
+                if (!Preview.worthShowing(expr, ansIsNumber)) null
+                else Calculator.evaluator(expr, memory, currentSettings) { System.nanoTime() > deadline || !job.isActive }.eval(expr)
+            }.getOrNull()
         } as? Value.Num
     }
 

@@ -6,6 +6,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.test.core.app.ApplicationProvider
 import com.l0gic0l.casiocalc.math.editor.Tokens
 import com.l0gic0l.casiocalc.math.format.RowText
+import com.l0gic0l.casiocalc.math.num.Complex
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.ui.keypad.Cmd
 import com.l0gic0l.casiocalc.ui.keypad.KeyAction
@@ -69,6 +70,23 @@ class PreviewTest {
         assertEquals(Value.of(1), vm.memory.getVar("A"))
         key(KeyAction.Command(Cmd.AC))
         type(Tokens.RAN, Tokens.ADD, Tokens.digit(1))
+        settle()
+        assertNull(vm.runPreview)
+    }
+
+    @Test fun hugeCombinationsGiveNoPreviewAndDoNotHoldUpTheNextOne() {
+        type(Tokens.digit(1), *Array(6) { Tokens.digit(0) }, Tokens.NCR, Tokens.digit(3), *Array(5) { Tokens.digit(0) })
+        settle()
+        assertNull(vm.runPreview)
+        key(KeyAction.Command(Cmd.AC))
+        type(Tokens.digit(2), Tokens.ADD, Tokens.digit(3))
+        settle()
+        assertEquals("5", preview())
+    }
+
+    @Test fun matrixAnsWaitsForExe() {
+        vm.memory.ans = Value.Mat(2, 2, listOf(1, 2, 3, 4).map { Complex.of(it.toLong()) })
+        type(Tokens.ANS, Tokens.MUL, Tokens.digit(2))
         settle()
         assertNull(vm.runPreview)
     }
