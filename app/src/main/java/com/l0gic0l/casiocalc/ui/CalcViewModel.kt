@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.l0gic0l.casiocalc.data.AppMemory
@@ -23,6 +24,8 @@ import com.l0gic0l.casiocalc.data.ViewWindow
 import com.l0gic0l.casiocalc.math.CalcException
 import com.l0gic0l.casiocalc.math.Calculator
 import com.l0gic0l.casiocalc.math.ErrorKind
+import com.l0gic0l.casiocalc.math.Preview
+import com.l0gic0l.casiocalc.math.parse.Parser
 import com.l0gic0l.casiocalc.math.editor.MathRow
 import com.l0gic0l.casiocalc.math.editor.TokenNode
 import com.l0gic0l.casiocalc.math.editor.Tokens
@@ -36,7 +39,9 @@ import com.l0gic0l.casiocalc.ui.keypad.Keys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import com.l0gic0l.casiocalc.math.cas.Calculus
 import com.l0gic0l.casiocalc.math.cas.DerivativeSolution
@@ -73,6 +78,10 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
     private var recallIndex = -1
     @Volatile private var cancelRequested = false
 
+    /** The value of the line being typed, for simple calculations (see [Preview]); null when there is none to show. */
+    var runPreview by mutableStateOf<Value?>(null)
+        private set
+
     // ---- Graph / Table ----------------------------------------------------------------------
     val graphFunctions = mutableStateListOf<GraphFunction>().apply {
         repeat(GRAPH_SLOTS) { add(GraphFunction(colorIndex = it % GRAPH_COLORS)) }
@@ -106,12 +115,44 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var derivativeError by mutableStateOf<String?>(null)
         private set
-    var solving by mutableStateOf(false)
+    /** True while that mode's solve runs; each mode has its own, so one never blocks or cancels the other. */
+    var integralSolving by mutableStateOf(false)
         private set
-    private var solveJob: Job? = null
+    var derivativeSolving by mutableStateOf(false)
+        private set
+    private var integralJob: Job? = null
+    private var derivativeJob: Job? = null
 
     init {
         load()
+        // Every edit, and any change to the settings or memory it reads, works the preview out again;
+        // collectLatest drops the one still pending.
+        viewModelScope.launch {
+            snapshotFlow { listOf(runInput.revision, prefs.livePreview, settings, memory.version) }.collectLatest { refreshPreview() }
+        }
+    }
+
+    private suspend fun refreshPreview() {
+        if (!prefs.livePreview || runInput.row.isEmpty) {
+            runPreview = null
+            return
+        }
+        val row = runInput.row.copy()
+        val currentSettings = settings
+        val ansIsNumber = memory.ans is Value.Num
+        // The old preview stays up until the new one is ready, so it does not flicker while typing.
+        // Parsing runs off the main thread too, and the evaluator stops at the time limit or as soon
+        // as the next keystroke cancels this job.
+        runPreview = withContext(Dispatchers.Default) {
+            val job = coroutineContext.job
+            val deadline = System.nanoTime() + PREVIEW_LIMIT_MS * 1_000_000
+            runCatching {
+                val expr = Parser.parse(row)
+                // The evaluator on its own, not Calculator.evaluate: a preview must not change Ans.
+                if (!Preview.worthShowing(expr, ansIsNumber)) null
+                else Calculator.evaluator(expr, memory, currentSettings) { System.nanoTime() > deadline || !job.isActive }.eval(expr)
+            }.getOrNull()
+        } as? Value.Num
     }
 
     /** Works out the integral in the background; gives up after [SOLVE_SECONDS]. */
@@ -120,10 +161,12 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         if (f.isEmpty) return
         val lower = if (integralDefinite) integralLower.copy() else null
         val upper = if (integralDefinite) integralUpper.copy() else null
-        solve(
+        integralJob?.cancel()
+        integralSolving = true
+        integralJob = solve(
             work = { cancelled -> Calculus.integral(f, lower, upper, memory, settings, cancelled) },
-            done = { integralSolution = it; integralError = null },
-            failed = { integralSolution = null; integralError = it },
+            done = { integralSolving = false; integralSolution = it; integralError = null },
+            failed = { integralSolving = false; integralSolution = null; integralError = it },
         )
     }
 
@@ -132,23 +175,22 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         if (f.isEmpty) return
         val at = if (derivAtEnabled) derivAt.copy() else null
         val order = derivOrder
-        solve(
+        derivativeJob?.cancel()
+        derivativeSolving = true
+        derivativeJob = solve(
             work = { cancelled -> Calculus.derivative(f, order, at, memory, settings, cancelled) },
-            done = { derivativeSolution = it; derivativeError = null },
-            failed = { derivativeSolution = null; derivativeError = it },
+            done = { derivativeSolving = false; derivativeSolution = it; derivativeError = null },
+            failed = { derivativeSolving = false; derivativeSolution = null; derivativeError = it },
         )
     }
 
-    private fun <T> solve(work: (() -> Boolean) -> T, done: (T) -> Unit, failed: (String) -> Unit) {
-        solveJob?.cancel()
-        solving = true
+    private fun <T> solve(work: (() -> Boolean) -> T, done: (T) -> Unit, failed: (String) -> Unit): Job {
         scheduleSave()
-        solveJob = viewModelScope.launch {
+        return viewModelScope.launch {
             val deadline = System.nanoTime() + SOLVE_SECONDS * 1_000_000_000L
             val result = withContext(Dispatchers.Default) {
                 runCatching { work { System.nanoTime() > deadline || !isActive } }
             }
-            solving = false
             result.onSuccess(done).onFailure { e ->
                 failed(
                     when (e) {
@@ -161,12 +203,17 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Drops the result, and stops a solve still running so its answer does not appear afterwards. */
     fun clearIntegral() {
+        integralJob?.cancel()
+        integralSolving = false
         integralSolution = null
         integralError = null
     }
 
     fun clearDerivative() {
+        derivativeJob?.cancel()
+        derivativeSolving = false
         derivativeSolution = null
         derivativeError = null
     }
@@ -451,6 +498,7 @@ class CalcViewModel(app: Application) : AndroidViewModel(app) {
         const val GRAPH_COLORS = 6
         const val MAX_HISTORY = 60
         const val SOLVE_SECONDS = 8L
+        private const val PREVIEW_LIMIT_MS = 250L
 
         fun errorMessage(e: Throwable): String = when (e) {
             is CalcException -> e.kind.message

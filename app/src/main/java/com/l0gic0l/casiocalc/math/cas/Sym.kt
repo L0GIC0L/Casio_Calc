@@ -258,12 +258,13 @@ fun pow(base: Sym, exp: Sym): Sym {
 private fun numericPow(q: BigRational, e: BigRational): Sym? {
     if (e.isInteger) {
         val n = e.num
-        if (n.abs().toInt() * maxOf(q.bitSize, 1) > maxPowBits) return null
+        // Check the size in Long: 2^(2³²) would otherwise wrap round to 2^0.
+        if (n.bitLength() > 31 || n.abs().toLong() * maxOf(q.bitSize, 1) > maxPowBits) return null
         val r = q.pow(n.abs().toInt())
         return Sym.Num(if (n.signum() < 0) r.reciprocal() else r)
     }
     // Rational powers: exact roots, e.g. 8^(2/3) = 4 and (1/4)^(1/2) = 1/2.
-    if (q.signum < 0) return null
+    if (q.signum < 0 || e.den.bitLength() > 31) return null
     val k = e.den.toInt()
     val rootNum = exactRoot(q.num, k) ?: return null
     val rootDen = exactRoot(q.den, k) ?: return null

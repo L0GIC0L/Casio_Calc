@@ -332,9 +332,10 @@ class Parser private constructor(private val lex: List<Lexeme>) {
                             if (k.kind != TokenKind.DIGIT) break
                             digits.append(k.id); i++
                         }
-                        if (digits.isEmpty()) syntaxError("exponent")
+                        // Three digits at most, so 1E-9999999 cannot stall on a huge power of ten.
+                        if (digits.isEmpty() || digits.length > 3) syntaxError("exponent")
                         val e = digits.toString().toInt().let { if (negative) -it else it }
-                        if (e > 400) syntaxError("exponent")
+                        if (kotlin.math.abs(e) > 400) syntaxError("exponent")
                         val scale = BigRational.of(BigInteger.TEN.pow(kotlin.math.abs(e)))
                         value = if (e >= 0) value * scale else value / scale
                     }

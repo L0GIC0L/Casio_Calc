@@ -78,9 +78,17 @@ import com.l0gic0l.casiocalc.ui.components.CalcKeypad
 import com.l0gic0l.casiocalc.ui.components.StatusLine
 import com.l0gic0l.casiocalc.ui.effects.ParticleField
 import com.l0gic0l.casiocalc.ui.effects.rememberParticleState
+import com.l0gic0l.casiocalc.math.editor.MathRow
+import com.l0gic0l.casiocalc.math.editor.Node
+import com.l0gic0l.casiocalc.math.editor.TokenNode
+import com.l0gic0l.casiocalc.math.editor.Tokens
 import com.l0gic0l.casiocalc.ui.math.MathInputField
+import com.l0gic0l.casiocalc.ui.math.MathView
 import com.l0gic0l.casiocalc.ui.math.ScrollingMath
 import com.l0gic0l.casiocalc.ui.math.defaultMathColors
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.TextUnit
 import kotlinx.coroutines.launch
 
 @Composable
@@ -173,7 +181,7 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
         val newest = history.lastOrNull()?.id
         var seen by remember { mutableStateOf(newest) }
         LaunchedEffect(newest) {
-            if (newest != null && newest != seen && vm.prefs.showParticles) {
+            if (newest != null && newest != seen && vm.prefs.showResultParticles) {
                 // Roughly where the newest answer lands: just above the input line, at the right.
                 particles.burst(width * 0.8f, (height - (if (compact) 66f else 110f) * density).coerceAtLeast(height * 0.3f), 28, density)
             }
@@ -183,6 +191,7 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
             item(key = "input") {
                 Column(Modifier.fillMaxWidth().heightIn(min = if (compact) 48.dp else 72.dp).padding(horizontal = 16.dp, vertical = if (compact) 2.dp else 8.dp)) {
                     MathInputField(vm.runInput, Modifier.fillMaxWidth(), fontSize = (if (compact) 24f else 30f * scale).sp)
+                    LivePreview(vm, formatter, (if (compact) 16f else 20f * scale).sp, Modifier.align(Alignment.End))
                     AnimatedVisibility(vm.computing, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
@@ -209,8 +218,32 @@ private fun HistoryAndInput(vm: CalcViewModel, modifier: Modifier) {
             listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.secondary),
             Modifier.fillMaxSize(),
             count = 0,
-            running = vm.prefs.showParticles,
+            running = vm.prefs.showResultParticles,
         )
+    }
+}
+
+/**
+ * "= value" under the line being typed, in a quiet colour, for simple calculations. It is hidden
+ * while a calculation runs, after an error, and when it would only repeat the input (π, 1/2).
+ */
+@Composable
+private fun LivePreview(vm: CalcViewModel, formatter: Formatter, fontSize: TextUnit, modifier: Modifier) {
+    val value = vm.runPreview
+    val input = vm.runInput.row
+    @Suppress("UNUSED_VARIABLE") val typing = vm.runInput.revision
+    val result = remember(value, formatter) { value?.let { formatter.format(it) } }
+    val visible = result != null && vm.prefs.livePreview && !vm.computing && vm.runError == null && RowText.linear(result) != RowText.linear(input)
+    // Keeps the last value on screen while it fades out.
+    var shown by remember { mutableStateOf<MathRow?>(null) }
+    if (visible) shown = result
+    AnimatedVisibility(visible, enter = fadeIn(), exit = fadeOut(), modifier = modifier) {
+        val row = shown ?: return@AnimatedVisibility
+        val muted = MaterialTheme.colorScheme.onSurfaceVariant
+        val line = remember(row) { MathRow(listOf<Node>(TokenNode(Tokens.EQ)) + row.copy().nodes) }
+        Box(Modifier.semantics { contentDescription = "Preview " + RowText.linear(line) }) {
+            MathView(line, fontSize = fontSize, colors = defaultMathColors().copy(normal = muted, function = muted, operator = muted))
+        }
     }
 }
 

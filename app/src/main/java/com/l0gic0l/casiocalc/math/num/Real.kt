@@ -146,6 +146,8 @@ sealed class Real {
             }
             if (n.signum() == 0) return BigInteger.ZERO
             if (k == 1) return n
+            // 2ᵏ > n, so only 1 can be a root; checking c = 2 would build 2ᵏ, which for 2^0.0000001 is huge.
+            if (k >= n.bitLength()) return if (n == BigInteger.ONE) n else null
             val est = Math.pow(n.toDouble(), 1.0 / k)
             if (est.isInfinite() || est.isNaN()) return null
             val base = BigInteger.valueOf(Math.round(est))

@@ -50,6 +50,7 @@ class Evaluator(
     }
 
     fun eval(e: Expr): Value {
+        checkCancelled()
         val v = evalNode(e)
         checkRange(v)
         return v
@@ -266,9 +267,15 @@ class Evaluator(
         val rr = R.toBigInteger(r) ?: argError("nPr")
         if (nn.signum() < 0 || rr.signum() < 0 || rr > nn) mathError("nPr")
         if (nn.bitLength() > 31) mathError("nPr")
-        var result = BigInteger.ONE
-        val k = rr.toInt()
         val nv = nn.toInt()
+        // nCr(n, r) = nCr(n, n − r); the smaller r means fewer multiplications.
+        val k = if (choose) minOf(rr.toInt(), nv - rr.toInt()) else rr.toInt()
+        // Answers of 10^100 or more are out of range anyway; checking the size first keeps
+        // 1000000C300000 from multiplying out hundreds of thousands of factors.
+        val log10 = (Distributions.lnGamma(nv + 1.0) - Distributions.lnGamma(nv - k + 1.0) -
+            (if (choose) Distributions.lnGamma(k + 1.0) else 0.0)) / kotlin.math.ln(10.0)
+        if (log10 > 101) mathError("overflow")
+        var result = BigInteger.ONE
         for (i in 0 until k) result *= BigInteger.valueOf((nv - i).toLong())
         if (choose) result /= factorial(k)
         return Real.of(result)

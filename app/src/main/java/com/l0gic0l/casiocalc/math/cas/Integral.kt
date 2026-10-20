@@ -155,28 +155,44 @@ class Integrator(private val x: String = "X", private val budget: Budget = Budge
         val q = f.base
         val br = b.rational
         val cr = c.rational
+        // Signs come from the number in front, so −A² counts as negative: √ is only taken of positive terms.
+        val sb = splitCoefficient(b).first.signum
+        val sc = splitCoefficient(c).first.signum
         // With b < 0 the root is a circle-type √(c − |b|x²), which needs c > 0 and gives sin⁻¹.
-        val circle = br != null && br.signum < 0
-        if (circle && cr != null && cr.signum <= 0) return null
+        val circle = sb < 0
         val m = if (circle) neg(b) else b
         val asin = fn("asin", mul(xv, root(div(m, c))))
         val log = fn("ln", fn("abs", add(mul(root(m), xv), sqrt(q))))
         val title = "Standard integral"
         return when (f.exp) {
             // Rational coefficients are done by partial fractions or completing the square instead.
-            MINUS_ONE -> if (br != null && cr != null) null else
-                found(f, div(fn("atan", mul(xv, root(div(b, c)))), root(mul(b, c))), title, "∫ 1/(b$n² + c) dx = tan⁻¹($n√(b/c))/√(bc).")
-            rat(-1, 2) -> if (circle) {
-                found(f, div(asin, root(m)), title, "∫ 1/√(c − b$n²) dx = sin⁻¹($n√(b/c))/√b.")
-            } else {
-                found(f, div(log, root(m)), title, "∫ 1/√(b$n² + c) dx = ln|√b·$n + √(b$n² + c)|/√b.")
+            MINUS_ONE -> when {
+                br != null && cr != null -> null
+                sb > 0 && sc > 0 ->
+                    found(f, div(fn("atan", mul(xv, root(div(b, c)))), root(mul(b, c))), title, "∫ 1/(b$n² + c) dx = tan⁻¹($n√(b/c))/√(bc).")
+                sb != sc -> {
+                    // 1/(B$n² − K) with B, K > 0; when b is the negative one, 1/(b$n² + c) = −1/(B$n² − K).
+                    val big = if (sb > 0) b else neg(b)
+                    val k = if (sb > 0) neg(c) else c
+                    val rb = root(big)
+                    val rk = root(k)
+                    val ratio = fn("ln", fn("abs", div(sub(mul(rb, xv), rk), add(mul(rb, xv), rk))))
+                    val value = div(ratio, mul(TWO, root(mul(big, k))))
+                    found(f, if (sb > 0) value else neg(value), title, "∫ 1/(B$n² − K) dx = ln|(√B·$n − √K)/(√B·$n + √K)|/(2√(BK)).")
+                }
+                else -> null
+            }
+            rat(-1, 2) -> when {
+                circle && sc > 0 -> found(f, div(asin, root(m)), title, "∫ 1/√(c − b$n²) dx = sin⁻¹($n√(b/c))/√b.")
+                circle -> null
+                else -> found(f, div(log, root(m)), title, "∫ 1/√(b$n² + c) dx = ln|√b·$n + √(b$n² + c)|/√b.")
             }
             HALF -> {
                 val half = mul(HALF, xv, sqrt(q))
-                if (circle) {
-                    found(f, add(half, mul(div(c, mul(TWO, root(m))), asin)), title, "∫ √(c − b$n²) dx = $n√(c − b$n²)/2 + c·sin⁻¹($n√(b/c))/(2√b).")
-                } else {
-                    found(f, add(half, mul(div(c, mul(TWO, root(m))), log)), title, "∫ √(b$n² + c) dx = $n√(b$n² + c)/2 + c·ln|√b·$n + √(b$n² + c)|/(2√b).")
+                when {
+                    circle && sc > 0 -> found(f, add(half, mul(div(c, mul(TWO, root(m))), asin)), title, "∫ √(c − b$n²) dx = $n√(c − b$n²)/2 + c·sin⁻¹($n√(b/c))/(2√b).")
+                    circle -> null
+                    else -> found(f, add(half, mul(div(c, mul(TWO, root(m))), log)), title, "∫ √(b$n² + c) dx = $n√(b$n² + c)/2 + c·ln|√b·$n + √(b$n² + c)|/(2√b).")
                 }
             }
             else -> null
@@ -629,8 +645,11 @@ class Integrator(private val x: String = "X", private val budget: Budget = Budge
                 fa = fa.subst(Sym.Var(p), value)
             }
             val points = listOf(0.37, 0.81, 1.23, 1.94, 2.61, -0.43, -1.37, 0.12, 3.3, -2.2)
+            // Further out, for answers such as √(x − 5) that are only defined there.
+            val further = listOf(4.7, 6.3, 8.9, 12.4, 25.1, 51.7, -4.9, -8.3, -13.1)
             var checked = 0
-            for (t in points) {
+            for (t in points + further) {
+                if (checked >= 3 && t in further) break
                 val expected = ff.eval(x, t)
                 if (!expected.isFinite()) continue
                 val h = 1e-5 * maxOf(1.0, Math.abs(t))
