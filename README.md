@@ -1,4 +1,4 @@
-# CG Calc
+# Classy Calc
 
 A native Android calculator, written in Kotlin with Jetpack Compose and Material 3, that brings the
 main features of the Casio fx-CG50 to a phone. The centre of it is **natural display**: input and
