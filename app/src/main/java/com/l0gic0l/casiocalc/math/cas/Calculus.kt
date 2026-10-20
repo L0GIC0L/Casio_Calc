@@ -9,6 +9,7 @@ import com.l0gic0l.casiocalc.math.eval.AngleUnit
 import com.l0gic0l.casiocalc.math.eval.Memory
 import com.l0gic0l.casiocalc.math.eval.Settings
 import com.l0gic0l.casiocalc.math.numeric.Numeric
+import com.l0gic0l.casiocalc.math.num.Real
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.math.parse.Parser
 
@@ -23,6 +24,8 @@ class DerivativeSolution(
     val symbolicAt: Sym?,
     /** Its value; null where it is not defined or when letters other than X leave it symbolic. */
     val valueAt: Value?,
+    /** Defined, but 10¹⁰⁰ or more, out of the calculator's range. */
+    val tooLarge: Boolean = false,
 )
 
 /** A worked integral. [antiderivative] is null when no method applied; [definite] is set when limits were given. */
@@ -87,35 +90,45 @@ object Calculus {
         val point = at?.takeIf { !it.isEmpty }?.let { parse(it) }
         var symbolicAt = point?.let { p -> tidy(current.subst(Sym.Var(X), p)) }
         var valueAt: Value? = null
-        // Letters other than X, and X itself in the point (f′ at X + 1), stay symbolic as in the
-        // steps rather than taking stored values.
-        val numeric = point != null && !point.dependsOn(X) && point.otherVariables(X).isEmpty() && current.otherVariables(X).isEmpty()
-        if (numeric && symbolicAt != null) {
+        var tooLarge = false
+        // Only a constant gets a value: letters other than X, or X in the point (f′ at X + 1), leave
+        // a formula as in the steps, rather than taking stored values.
+        if (point != null && symbolicAt != null && !symbolicAt.dependsOn(X) && symbolicAt.otherVariables(X).isEmpty()) {
             val value = exactResult(symbolicAt, memory, settings)
             val failure = value.exceptionOrNull()
-            val defined = when {
-                // Too large to show, as e^(X²) at 30, but defined.
-                failure.isOverflow() -> true
+            // Checking that the derivative exists there needs numbers throughout.
+            val checkable = !point.dependsOn(X) && point.otherVariables(X).isEmpty() && f.otherVariables(X).isEmpty()
+            when {
+                // An overflow on the way, as in sinh(240)/cosh(240), or a value of 10¹⁰⁰ or more, as
+                // for e^(X²) at 30: the double value tells which.
+                failure.isOverflow() -> {
+                    val approx = symbolicAt.eval(X, 0.0)
+                    if (approx.isFinite() && Math.abs(approx) < 1e100) valueAt = Value.of(Real.Approx(approx)) else tooLarge = true
+                }
                 // tan(π/2): the double cos(π/2) is not quite 0, so only the exact value notices.
-                failure != null -> false
-                else -> definedAt(current, point.eval(X, 0.0), symbolicAt.eval(X, 0.0))
+                failure != null -> symbolicAt = null
+                checkable && !definedAt(f, current, point.eval(X, 0.0), symbolicAt.eval(X, 0.0)) -> symbolicAt = null
+                else -> valueAt = value.getOrNull()
             }
-            if (defined) valueAt = value.getOrNull() else symbolicAt = null
         }
-        return DerivativeSolution(f, current, order, steps, point, symbolicAt, valueAt)
+        return DerivativeSolution(f, current, order, steps, point, symbolicAt, valueAt, tooLarge)
     }
 
     /**
-     * Whether the derivative [d] has the value [s] at [x]. Simplifying can hide a division by zero
-     * (x/|x| at 0 folds 0·0⁻¹ to 0), so where d itself is not finite at x, the value counts only if
-     * d tends to it from both sides, as the rule-made 2x²/|x| does for x·|x| at 0.
+     * Whether the derivative [d] of [f] has the value [s] at [x]. Simplifying can hide a division by
+     * zero (x/|x| at 0 folds 0·0⁻¹ to 0), so where d itself is not finite at x, the value counts only
+     * if f is defined there and d tends to s from both sides: its distance from s shrinks with the
+     * step, as for the rule-made 2x²/|x| of x·|x| at 0, instead of staying put, as at a kink.
      */
-    private fun definedAt(d: Sym, x: Double, s: Double): Boolean {
+    private fun definedAt(f: Sym, d: Sym, x: Double, s: Double): Boolean {
         if (!s.isFinite()) return false
         if (d.eval(X, x).isFinite()) return true
-        val h = 1e-7 * maxOf(1.0, Math.abs(x))
-        val tolerance = 1e-4 * maxOf(1.0, Math.abs(s))
-        return listOf(d.eval(X, x - h), d.eval(X, x + h)).all { it.isFinite() && Math.abs(it - s) <= tolerance }
+        if (!f.eval(X, x).isFinite()) return false
+        val scale = maxOf(1.0, Math.abs(x))
+        fun gap(h: Double) = maxOf(Math.abs(d.eval(X, x - h * scale) - s), Math.abs(d.eval(X, x + h * scale) - s))
+        val far = gap(1e-6)
+        val near = gap(1e-9)
+        return far.isFinite() && near.isFinite() && (near <= 1e-12 * maxOf(1.0, Math.abs(s)) || near <= 0.1 * far)
     }
 
     fun integral(integrand: MathRow, lower: MathRow?, upper: MathRow?, memory: Memory, settings: Settings, cancelled: () -> Boolean = { false }): IntegralSolution {
@@ -146,13 +159,14 @@ object Calculus {
         val continuous by lazy { anti != null && continuous(anti, lo, hi) }
         return when {
             agrees -> Definite(a, b, symbolic, value, null, Definite.Status.EXACT, checked = true)
-            result?.exceptionOrNull().isOverflow() -> Definite(a, b, symbolic, null, null, Definite.Status.TOO_LARGE)
             // FTC: with F continuous on [a, b], F(b) − F(a) is right even where quadrature struggles.
             // F(b) − F(a) worked out in doubles must match the exact one: simplifying F(b) can
             // cancel a ln 0 against another, as for ln(4 − x²) at 2.
             exactDouble != null && continuous && matches(anti!!, lo, hi, exactDouble) ->
                 Definite(a, b, symbolic, value, null, Definite.Status.EXACT)
-            found -> Definite(a, b, symbolic, null, numeric, Definite.Status.NUMERIC)
+            // Also where F(b) − F(a) only overflows on the way, as ln(cosh 240) does.
+            found && Math.abs(numeric) < 1e100 -> Definite(a, b, symbolic, null, numeric, Definite.Status.NUMERIC)
+            found || result?.exceptionOrNull().isOverflow() -> Definite(a, b, symbolic, null, null, Definite.Status.TOO_LARGE)
             anti != null && !continuous -> Definite(a, b, symbolic, null, null, Definite.Status.DIVERGES)
             else -> Definite(a, b, null, null, null, Definite.Status.UNKNOWN)
         }
@@ -165,43 +179,95 @@ object Calculus {
     }
 
     /**
-     * Whether [F] is continuous on [lo, hi], judged from samples. F must be finite at the ends and
-     * at 4096 points between them. Then the biggest steps between neighbouring samples, and the
-     * samples largest in size, are looked at more closely: a window round each is cut down, again
-     * and again, to the three twelfths with the biggest step. For a continuous F the step shrinks
-     * with the window. Across a pole, a logarithmic singularity or a jump it does not, however the
-     * samples happen to fall, and F that oscillates faster than the grid is followed down until it
-     * is smooth.
+     * Whether [F] is continuous on [from, to]. F must be finite at the ends and at 4096 points
+     * between them. Inside, F can only blow up or jump where a denominator, the argument of ln or
+     * the cosine under tan is zero, so those zeros are found (sign changes, and minima of |g| that
+     * reach 0) and F is looked at on each side of them. Unlike looking for big steps between
+     * samples, this does not depend on where the samples fall, is not misled by a steep part
+     * elsewhere, and leaves fast but smooth oscillation alone.
      */
     private fun continuous(F: Sym, from: Double, to: Double): Boolean {
         val lo = minOf(from, to)
         val hi = maxOf(from, to)
         val n = 4096
         val xs = DoubleArray(n + 2) { k -> if (k == 0) lo else if (k == n + 1) hi else lo + (k - 0.5) * (hi - lo) / n }
-        val values = DoubleArray(n + 2) { F.eval(X, xs[it]) }
-        if (values.any { !it.isFinite() }) return false
-        val size = values.maxOf { Math.abs(it) }
-        val steps = (0 until n + 1).sortedByDescending { Math.abs(values[it + 1] - values[it]) }.take(16)
-        val largest = values.indices.sortedByDescending { Math.abs(values[it]) }.take(4).map { minOf(it, n) }
-        val tiny = 1e-13 * maxOf(1.0, Math.abs(lo), Math.abs(hi))
-        for (spot in (steps + largest).distinct()) {
-            var a = xs[maxOf(spot - 1, 0)]
-            var b = xs[minOf(spot + 2, n + 1)]
-            var first = -1.0
-            var last = 0.0
-            while (b - a > tiny) {
-                val px = DoubleArray(12) { a + (b - a) * it / 11 }
-                val pv = DoubleArray(12) { F.eval(X, px[it]) }
-                if (pv.any { !it.isFinite() }) return false
-                val j = (0 until 11).maxByOrNull { Math.abs(pv[it + 1] - pv[it]) }!!
-                last = Math.abs(pv[j + 1] - pv[j])
-                if (first < 0) first = last
-                a = px[maxOf(j - 1, 0)]
-                b = px[minOf(j + 2, 11)]
-            }
-            if (last > 0.01 * first && last > 1e-12 * maxOf(1.0, size)) return false
+        if (xs.any { !F.eval(X, it).isFinite() }) return false
+        for (g in mustNotVanish(F)) {
+            for (x0 in zeros(g, xs)) if (brokenAt(F, x0, lo, hi)) return false
         }
         return true
+    }
+
+    /** The quantities F divides by or takes ln of, as functions of X: F can only blow up or jump where one is 0. */
+    private fun mustNotVanish(F: Sym): List<(Double) -> Double> = F.subexpressions().flatMap { s ->
+        when {
+            s is Sym.Pow && s.base.dependsOn(X) && !s.exp.dependsOn(X) && s.exp.eval(X, 0.0) < 0 -> listOf { t: Double -> s.base.eval(X, t) }
+            s is Sym.Fn && (s.name == "ln" || s.name == "log") && s.arg.dependsOn(X) -> listOf { t: Double -> s.arg.eval(X, t) }
+            s is Sym.Fn && s.name == "tan" && s.arg.dependsOn(X) -> listOf { t: Double -> Math.cos(s.arg.eval(X, t)) }
+            s is Sym.Fn && s.name == "atanh" && s.arg.dependsOn(X) -> listOf({ t: Double -> 1 - s.arg.eval(X, t) }, { t: Double -> 1 + s.arg.eval(X, t) })
+            else -> emptyList()
+        }
+    }
+
+    /** Where [g] is 0 on the grid [xs]: each sign change, bisected, and each minimum of |g| that comes down to 0. */
+    private fun zeros(g: (Double) -> Double, xs: DoubleArray): List<Double> {
+        val v = DoubleArray(xs.size) { g(xs[it]) }
+        val size = v.maxOf { if (it.isFinite()) Math.abs(it) else 0.0 }
+        val out = ArrayList<Double>()
+        for (k in xs.indices) {
+            if (out.size >= 64) break
+            if (v[k] == 0.0) out += xs[k]
+            if (k + 1 < xs.size && v[k] * v[k + 1] < 0) {
+                var a = xs[k]
+                var b = xs[k + 1]
+                val sa = Math.signum(v[k])
+                repeat(80) {
+                    val m = (a + b) / 2
+                    if (m <= a || m >= b) return@repeat
+                    if (Math.signum(g(m)) == sa) a = m else b = m
+                }
+                out += (a + b) / 2
+            }
+            // A zero that touches without crossing, as |x| or x² does.
+            if (k in 1 until xs.size - 1 && Math.abs(v[k]) <= Math.abs(v[k - 1]) && Math.abs(v[k]) <= Math.abs(v[k + 1]) && Math.abs(v[k]) < 1e-2 * size) {
+                var a = xs[k - 1]
+                var b = xs[k + 1]
+                repeat(100) {
+                    val m1 = a + (b - a) * 0.382
+                    val m2 = a + (b - a) * 0.618
+                    if (Math.abs(g(m1)) < Math.abs(g(m2))) b = m2 else a = m1
+                }
+                val m = (a + b) / 2
+                if (Math.abs(g(m)) <= 1e-9 * maxOf(1.0, size)) out += m
+            }
+        }
+        return out
+    }
+
+    /**
+     * Whether F blows up or jumps at [x0]. On each side inside [lo, hi], F is taken at 10⁻³, 10⁻⁶,
+     * 10⁻⁹ and 10⁻¹² of the interval's width away: a continuous F settles, so the change from one
+     * distance to the next shrinks, while across a pole or a log singularity it keeps going. The
+     * two sides must also meet.
+     */
+    private fun brokenAt(F: Sym, x0: Double, lo: Double, hi: Double): Boolean {
+        val width = hi - lo
+        val finest = 1e3 * Math.ulp(maxOf(Math.abs(x0), java.lang.Double.MIN_NORMAL))
+        val nearest = DoubleArray(2) { Double.NaN }
+        for ((i, side) in listOf(-1.0, 1.0).withIndex()) {
+            val values = listOf(1e-3, 1e-6, 1e-9, 1e-12).map { it * width }
+                .filter { it >= finest && x0 + side * it in lo..hi }
+                .map { F.eval(X, x0 + side * it) }
+            if (values.any { !it.isFinite() }) return true
+            for (j in 2 until values.size) {
+                val before = Math.abs(values[j - 1] - values[j - 2])
+                val after = Math.abs(values[j] - values[j - 1])
+                if (after > 0.5 * before && after > 1e-9 * maxOf(1.0, Math.abs(values[j]))) return true
+            }
+            nearest[i] = values.lastOrNull() ?: Double.NaN
+        }
+        val (left, right) = nearest
+        return left.isFinite() && right.isFinite() && Math.abs(left - right) > 1e-6 * maxOf(1.0, Math.abs(left), Math.abs(right))
     }
 
     /** Exact value of a constant expression with the normal evaluator, in radians. */

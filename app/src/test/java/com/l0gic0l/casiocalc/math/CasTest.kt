@@ -201,6 +201,12 @@ class CasTest {
             Triple("{frac:1|sin(X){pow:2}}", "~2", "10"),
             Triple("{frac:1|sin(X){pow:2}}", "1", "4"),
             Triple("{frac:1|cos(X)}", "0", "2"),
+            // The integrator's running totals used to cancel to 0 after a 10³¹ term at the pole.
+            Triple("{frac:1|X{pow:3}}", "~2", "1.2"),
+            Triple("{frac:1|X{pow:2}}", "~0.7", "0.9"),
+            // A steep x³ part used to take every place the old test looked at.
+            Triple("X{pow:2}+{frac:1|X}", "~1", "20"),
+            Triple("{frac:1|X{pow:2}}", "~1#~11", "2#~11"),
         )) {
             val d = definite(s, a, b)
             assertEquals("$s on [$a, $b]", Definite.Status.DIVERGES, d.status)
@@ -227,6 +233,29 @@ class CasTest {
             assertEquals("$s on [0, $b]", Definite.Status.EXACT, d.status)
             assertEquals(expected, (d.value as Value.Num).z.re.toDouble(), 1e-6)
         }
+    }
+
+    @Test fun integrableSingularitiesStayExact() {
+        for ((s, a, b, expected) in listOf(
+            listOf("{frac:1|{sqrt:X-1000000}}", "1000000", "1000001", "2"),
+            listOf("(X-1000){pow:~0.7}", "1000", "1001", "${10.0 / 3}"),
+            listOf("X{pow:~0.97}", "0", "1", "${100.0 / 3}"),
+        )) {
+            val d = definite(s, a, b)
+            assertEquals("$s on [$a, $b]", Definite.Status.EXACT, d.status)
+            assertEquals(expected.toDouble(), (d.value as Value.Num).z.re.toDouble(), 1e-6)
+        }
+    }
+
+    /** F(b) − F(a) overflows on the way (cosh 240), but the integral itself is in range. */
+    @Test fun overflowOnTheWayIsNotTooLarge() {
+        val d = definite("tanh(X)", "0", "240")
+        assertEquals(Definite.Status.NUMERIC, d.status)
+        assertEquals(240 - Math.log(2.0), d.numeric!!, 1e-6)
+        assertEquals(Definite.Status.NUMERIC, definite("e{pow:X}", "230", "230.5").status)
+        val p = Calculus.derivative(row("ln(cosh(X))"), 1, row("240"), memory, settings)
+        assertEquals(1.0, (p.valueAt as Value.Num).z.re.toDouble(), 1e-12)
+        assertEquals(false, p.tooLarge)
     }
 
     @Test fun hugeValuesAreTooLargeNotDivergent() {
@@ -259,6 +288,18 @@ class CasTest {
         val big = at("e{pow:X{pow:2}}", "30")
         assertNotNull(big.symbolicAt)
         assertEquals(null, big.valueAt)
+        assertEquals(true, big.tooLarge)
+        // Steeper, or away from 0: the gap still shrinks with the step.
+        assertEquals("0", at("1000X{abs:X}", "0").symbolicAt?.let(::text))
+        assertEquals("0", at("(X-1000){abs:X-1000}", "1000").symbolicAt?.let(::text))
+        // Kinks, however small or steep, have no derivative; nor does a point where f is undefined.
+        for (s in listOf("20000X+{abs:X}", "{frac:{abs:X}|100000}", "X{pow:2}ln({abs:X})", "{frac:X{pow:3}|{abs:X}}")) {
+            assertEquals(s, null, at(s, "0").symbolicAt)
+        }
+        // A constant with letters about is a value, not "too large".
+        val constant = at("AX{pow:2}", "0")
+        assertEquals(false, constant.tooLarge)
+        assertEquals(0.0, (constant.valueAt as Value.Num).z.re.toDouble(), 0.0)
     }
 
     @Test fun quadraticTableWithLettersHasNoRootsOfNegatives() {

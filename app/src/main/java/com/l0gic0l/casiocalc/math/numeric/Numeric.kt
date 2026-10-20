@@ -62,30 +62,28 @@ object Numeric {
         if (a == b) return 0.0 to true
         if (a > b) return adaptive(f, b, a, tol, check).let { (v, ok) -> -v to ok }
         val segments = java.util.PriorityQueue<Segment>(compareByDescending { it.error })
-        val first = gk15(f, a, b)
-        segments += first
-        var total = first.value
-        var error = first.error
+        segments += gk15(f, a, b)
+        // The totals are summed afresh each time: kept as running sums, a 10³¹ term next to a pole
+        // can wipe out everything else when it is taken away again.
+        var total = segments.sumOf { it.value }
+        var error = segments.sumOf { it.error }
         var iterations = 0
         while (error > max(tol, tol * abs(total)) && iterations < 2000) {
             check()
             val worst = segments.poll() ?: break
             val mid = (worst.a + worst.b) / 2
-            val left = gk15(f, worst.a, mid)
-            val right = gk15(f, mid, worst.b)
-            total += left.value + right.value - worst.value
-            error += left.error + right.error - worst.error
-            segments += left
-            segments += right
+            segments += gk15(f, worst.a, mid)
+            segments += gk15(f, mid, worst.b)
+            total = segments.sumOf { it.value }
+            error = segments.sumOf { it.error }
             iterations++
         }
         if (total.isNaN() || total.isInfinite()) return Double.NaN to false
-        // At a pole the error estimate can look small next to a huge total. If most of the
-        // integral sits in segments narrower than a billionth of [a, b], it did not converge.
-        val narrow = 1e-9 * (b - a)
-        val inNarrow = segments.filter { it.b - it.a < narrow }.sumOf { abs(it.value) }
-        val settled = error <= max(tol, tol * abs(total)) && inNarrow <= 0.5 * segments.sumOf { abs(it.value) }
-        return segments.sumOf { it.value } to settled
+        // A segment only a few doubles wide cannot be split further, and its error estimate means
+        // nothing: at a pole such segments can carry a huge total that looks settled.
+        val unresolved = segments.filter { it.b - it.a < 64 * Math.ulp(maxOf(abs(it.a), abs(it.b))) }.sumOf { abs(it.value) }
+        val settled = error <= max(tol, tol * abs(total)) && unresolved <= max(tol, tol * abs(total))
+        return total to settled
     }
 
     /** First derivative by Ridders' extrapolation of central differences. */

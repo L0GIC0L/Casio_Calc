@@ -84,6 +84,10 @@ class CalculatorTest {
         assertEquals(ErrorKind.MATH, error("2000000000nPr1000000000"))
         assertTrue((System.nanoTime() - start) / 1_000_000 < 1000)
         assertEquals(ErrorKind.SYNTAX, error("1#~9999999"))
+        // A huge root index used to build 2^10000000 to check for an exact root.
+        val root = System.nanoTime()
+        assertEquals("1.000000069", calc("2{pow:0.0000001}"))
+        assertTrue((System.nanoTime() - root) / 1_000_000 < 1000)
         assertEquals(ErrorKind.SYNTAX, error("1#401"))
     }
 

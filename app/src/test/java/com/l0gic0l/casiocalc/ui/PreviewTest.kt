@@ -4,14 +4,18 @@ import android.app.Application
 import android.os.Looper
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.test.core.app.ApplicationProvider
+import com.l0gic0l.casiocalc.math.Preview
 import com.l0gic0l.casiocalc.math.editor.Tokens
+import com.l0gic0l.casiocalc.math.parse.Parser
 import com.l0gic0l.casiocalc.math.format.RowText
 import com.l0gic0l.casiocalc.math.num.Complex
 import com.l0gic0l.casiocalc.math.num.Value
 import com.l0gic0l.casiocalc.ui.keypad.Cmd
 import com.l0gic0l.casiocalc.ui.keypad.KeyAction
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -89,6 +93,10 @@ class PreviewTest {
         type(Tokens.ANS, Tokens.MUL, Tokens.digit(2))
         settle()
         assertNull(vm.runPreview)
+        // The guard itself: a matrix Ans is not even evaluated.
+        val expr = Parser.parse(vm.runInput.row)
+        assertFalse(Preview.worthShowing(expr, ansIsNumber = false))
+        assertTrue(Preview.worthShowing(expr, ansIsNumber = true))
     }
 
     @Test fun settingTurnsItOff() {

@@ -44,13 +44,11 @@ import com.l0gic0l.casiocalc.math.cas.IntegralSolution
 import com.l0gic0l.casiocalc.math.cas.Render
 import com.l0gic0l.casiocalc.math.cas.Sym
 import com.l0gic0l.casiocalc.math.cas.add
-import com.l0gic0l.casiocalc.math.cas.dependsOn
 import com.l0gic0l.casiocalc.math.cas.div
 import com.l0gic0l.casiocalc.math.cas.exp
 import com.l0gic0l.casiocalc.math.cas.fn
 import com.l0gic0l.casiocalc.math.cas.mul
 import com.l0gic0l.casiocalc.math.cas.num
-import com.l0gic0l.casiocalc.math.cas.otherVariables
 import com.l0gic0l.casiocalc.math.cas.pow
 import com.l0gic0l.casiocalc.math.cas.sqrt
 import com.l0gic0l.casiocalc.math.cas.sub
@@ -316,7 +314,7 @@ private fun IntegralResult(s: IntegralSolution, vm: CalcViewModel) {
                 ValueLine(eq, Value.of(Real.Approx(v)), formatter)
                 CheckNote(
                     false,
-                    if (anti != null) "F(b) − F(a) can't be used on this interval, so the value was found numerically."
+                    if (anti != null) "F(b) − F(a) can't be used here, so the value was found numerically."
                     else "Found by numerical integration.",
                 )
             }
@@ -378,10 +376,10 @@ fun DerivativeScreen(vm: CalcViewModel, onBack: () -> Unit) {
                                 onClick = {
                                     vm.derivOrder = i + 1
                                     vm.scheduleSave()
-                                    // A new order re-solves what is shown, even mid-solve; while a box is
-                                    // open, EXE solves with the new order anyway.
+                                    // A new order re-solves what is shown, even mid-solve. While a box is open
+                                    // the old answer goes, and EXE solves with the new order.
                                     val shown = vm.derivativeSolution != null || vm.derivativeSolving || vm.derivativeError != null
-                                    if (session.current == null && shown) vm.solveDerivative()
+                                    if (shown) if (session.current == null) vm.solveDerivative() else vm.clearDerivative()
                                 },
                                 shape = SegmentedButtonDefaults.itemShape(i, 3),
                             ) { Text(label) }
@@ -481,11 +479,9 @@ private fun DerivativeResult(s: DerivativeSolution, vm: CalcViewModel) {
             }
             value != null -> ExactValue(prefix, symbolic, value, formatter)
             else -> {
-                // Letters, or X in the point, leave a formula; otherwise the value is out of range.
+                // Letters, or X in the point, leave a formula; or the value is out of range.
                 SpokenMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
-                if (!symbolic.dependsOn(Calculus.X) && symbolic.otherVariables(Calculus.X).isEmpty()) {
-                    CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
-                }
+                if (s.tooLarge) CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
             }
         }
     }
