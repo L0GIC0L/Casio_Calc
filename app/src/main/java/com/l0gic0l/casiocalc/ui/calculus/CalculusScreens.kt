@@ -44,11 +44,13 @@ import com.l0gic0l.casiocalc.math.cas.IntegralSolution
 import com.l0gic0l.casiocalc.math.cas.Render
 import com.l0gic0l.casiocalc.math.cas.Sym
 import com.l0gic0l.casiocalc.math.cas.add
+import com.l0gic0l.casiocalc.math.cas.dependsOn
 import com.l0gic0l.casiocalc.math.cas.div
 import com.l0gic0l.casiocalc.math.cas.exp
 import com.l0gic0l.casiocalc.math.cas.fn
 import com.l0gic0l.casiocalc.math.cas.mul
 import com.l0gic0l.casiocalc.math.cas.num
+import com.l0gic0l.casiocalc.math.cas.otherVariables
 import com.l0gic0l.casiocalc.math.cas.pow
 import com.l0gic0l.casiocalc.math.cas.sqrt
 import com.l0gic0l.casiocalc.math.cas.sub
@@ -312,7 +314,11 @@ private fun IntegralResult(s: IntegralSolution, vm: CalcViewModel) {
                 )
             }
             Definite.Status.PARAMETERS -> d.symbolic?.let { sym -> ScrollingMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
-                ?: CheckNote(false, "No antiderivative was found, and letters other than X leave no number to give.")
+                ?: CheckNote(false, "No antiderivative was found, and the letters leave no number to give.")
+            Definite.Status.TOO_LARGE -> {
+                d.symbolic?.let { sym -> ScrollingMath(remember(s) { r.equation(left, r.row(sym)) }, fontSize = 24.sp) }
+                CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
+            }
             Definite.Status.DIVERGES -> CheckNote(false, "The integral does not converge: the antiderivative grows without bound inside or at the end of the interval.")
             Definite.Status.UNKNOWN -> CheckNote(false, "No value was found: numerical integration did not settle, so the integral may not converge.")
         }
@@ -457,8 +463,13 @@ private fun DerivativeResult(s: DerivativeSolution, vm: CalcViewModel) {
                 CheckNote(false, "The derivative is not defined at this point.")
             }
             value != null -> ExactValue(prefix, symbolic, value, formatter)
-            // Letters other than X: the value stays symbolic.
-            else -> ScrollingMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
+            else -> {
+                // Letters, or X in the point, leave a formula; otherwise the value is out of range.
+                ScrollingMath(remember(s) { MathRow(prefix.copy().nodes.map { it.copy() } + r.row(symbolic).nodes) }, fontSize = 24.sp)
+                if (!symbolic.dependsOn(Calculus.X) && symbolic.otherVariables(Calculus.X).isEmpty()) {
+                    CheckNote(false, "The value is 10¹⁰⁰ or more, too large for the calculator.")
+                }
+            }
         }
     }
 }

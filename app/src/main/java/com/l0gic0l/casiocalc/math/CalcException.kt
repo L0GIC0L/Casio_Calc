@@ -15,7 +15,7 @@ enum class ErrorKind(val message: String) {
     CANCELLED("Break"),
 }
 
-class CalcException(val kind: ErrorKind, detail: String? = null) :
+class CalcException(val kind: ErrorKind, val detail: String? = null) :
     RuntimeException(if (detail == null) kind.message else "${kind.message}: $detail")
 
 fun syntaxError(detail: String? = null): Nothing = throw CalcException(ErrorKind.SYNTAX, detail)

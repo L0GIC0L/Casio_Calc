@@ -80,7 +80,12 @@ object Numeric {
             iterations++
         }
         if (total.isNaN() || total.isInfinite()) return Double.NaN to false
-        return segments.sumOf { it.value } to (error <= max(tol, tol * abs(total)))
+        // At a pole the error estimate can look small next to a huge total. If most of the
+        // integral sits in segments narrower than a billionth of [a, b], it did not converge.
+        val narrow = 1e-9 * (b - a)
+        val inNarrow = segments.filter { it.b - it.a < narrow }.sumOf { abs(it.value) }
+        val settled = error <= max(tol, tol * abs(total)) && inNarrow <= 0.5 * segments.sumOf { abs(it.value) }
+        return segments.sumOf { it.value } to settled
     }
 
     /** First derivative by Ridders' extrapolation of central differences. */

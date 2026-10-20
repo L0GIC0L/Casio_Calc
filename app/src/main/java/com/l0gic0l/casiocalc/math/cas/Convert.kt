@@ -1,6 +1,7 @@
 package com.l0gic0l.casiocalc.math.cas
 
 import com.l0gic0l.casiocalc.math.editor.TemplateKind
+import com.l0gic0l.casiocalc.math.mathError
 import com.l0gic0l.casiocalc.math.num.BigRational
 import com.l0gic0l.casiocalc.math.num.Real
 import com.l0gic0l.casiocalc.math.parse.Expr
@@ -35,7 +36,7 @@ fun Expr.toSym(): Sym = when (this) {
             "+" -> add(a, b)
             "-" -> sub(a, b)
             "*", "imul" -> mul(a, b)
-            "/" -> div(a, b)
+            "/" -> divide(a, b)
             "pow" -> pow(a, b)
             else -> throw UnsupportedInput(op)
         }
@@ -57,10 +58,10 @@ fun Expr.toSym(): Sym = when (this) {
     is Expr.Tpl -> {
         val s = slots.map { it?.toSym() }
         when (kind) {
-            TemplateKind.FRACTION -> div(s[0]!!, s[1]!!)
+            TemplateKind.FRACTION -> divide(s[0]!!, s[1]!!)
             TemplateKind.MIXED -> {
                 val w = s[0]!!
-                val f = div(s[1]!!, s[2]!!)
+                val f = divide(s[1]!!, s[2]!!)
                 // 2 1/2 is 2 + 1/2; −2 1/2 is −(2 + 1/2).
                 if (splitCoefficient(w).first.signum < 0) sub(w, f) else add(w, f)
             }
@@ -99,4 +100,10 @@ fun Sym.toExpr(): Expr = when (this) {
         else -> Expr.Binary("pow", base.toExpr(), exp.toExpr())
     }
     is Sym.Fn -> if (name == "abs") Expr.Tpl(TemplateKind.ABS, listOf(arg.toExpr())) else Expr.Call(name, listOf(arg.toExpr()))
+}
+
+/** a ÷ b as typed: a denominator that is zero, such as in 0/0 or 1/(X − X), is an error rather than folding to 0. */
+private fun divide(a: Sym, b: Sym): Sym {
+    if (b.isZero) mathError("division by zero")
+    return div(a, b)
 }

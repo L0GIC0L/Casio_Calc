@@ -189,4 +189,99 @@ class CasTest {
         assertEquals("−π^2", text(pi.symbolicAt!!))
         assertEquals(-Math.PI * Math.PI, (pi.valueAt as Value.Num).z.re.toDouble(), 1e-9)
     }
+
+    /** Poles away from the middle of the interval, which the old two-grid test missed depending on where the samples fell. */
+    @Test fun polesAnywhereInTheIntervalDiverge() {
+        for ((s, a, b) in listOf(
+            Triple("{frac:1|X{pow:2}}", "~3", "{frac:π|2}"),
+            Triple("tan(X)", "0", "2"),
+            Triple("{frac:1|cos(X){pow:2}}", "0", "2"),
+            Triple("{frac:1|cos(X){pow:2}}", "0", "3"),
+            Triple("{frac:1|X}", "~1", "0.3"),
+            Triple("{frac:1|sin(X){pow:2}}", "~2", "10"),
+            Triple("{frac:1|sin(X){pow:2}}", "1", "4"),
+            Triple("{frac:1|cos(X)}", "0", "2"),
+        )) {
+            val d = definite(s, a, b)
+            assertEquals("$s on [$a, $b]", Definite.Status.DIVERGES, d.status)
+        }
+    }
+
+    /** F has a log singularity at an end; simplifying F(b) cancelled ln 0 against ln 0 and gave a wrong exact value. */
+    @Test fun logSingularityAtAnEndFallsBackToTheNumericValue() {
+        val d = definite("ln(4-X{pow:2})", "0", "2")
+        assertEquals(Definite.Status.NUMERIC, d.status)
+        assertEquals(8 * Math.log(2.0) - 4, d.numeric!!, 1e-8)
+        val e = definite("ln(1-X{pow:2})", "~1", "1")
+        assertEquals(Definite.Status.NUMERIC, e.status)
+        assertEquals(4 * Math.log(2.0) - 4, e.numeric!!, 1e-8)
+    }
+
+    /** Bounded but faster than the sample grid: still F(b) − F(a), not "does not converge". */
+    @Test fun fastOscillationsAreNotDivergent() {
+        for ((s, b, expected) in listOf(
+            Triple("sin(1000X)", "1000", (1 - Math.cos(1e6)) / 1000),
+            Triple("sin(X)", "500000", 1 - Math.cos(5e5)),
+        )) {
+            val d = definite(s, "0", b)
+            assertEquals("$s on [0, $b]", Definite.Status.EXACT, d.status)
+            assertEquals(expected, (d.value as Value.Num).z.re.toDouble(), 1e-6)
+        }
+    }
+
+    @Test fun hugeValuesAreTooLargeNotDivergent() {
+        assertEquals(Definite.Status.TOO_LARGE, definite("e{pow:X}", "0", "1000").status)
+        assertEquals(Definite.Status.TOO_LARGE, definite("e{pow:X}", "0", "300").status)
+        // 2^(2³²) used to wrap round to 2⁰ = 1.
+        assertEquals(Definite.Status.TOO_LARGE, definite("2{pow:4294967296}X", "0", "1").status)
+    }
+
+    /** X in a limit or in the point is the variable, not the stored X. */
+    @Test fun xInALimitOrPointStaysSymbolic() {
+        memory.setVar("X", Value.of(3))
+        val d = definite("X{pow:2}", "0", "X")
+        assertEquals(Definite.Status.PARAMETERS, d.status)
+        assertEquals("X^3/3", text(d.symbolic!!).replace("(", "").replace(")", ""))
+        val log = Calculus.derivative(row("ln(X)"), 1, row("X"), memory, settings)
+        assertNotNull(log.symbolicAt)
+        assertEquals(null, log.valueAt)
+    }
+
+    @Test fun removableZeroOverZeroAtAPointIsDefined() {
+        fun at(s: String, p: String) = Calculus.derivative(row(s), 1, row(p), memory, settings)
+        for (s in listOf("X{abs:X}", "X{pow:2}{abs:X}", "{abs:X{pow:3}}")) {
+            val d = at(s, "0")
+            assertEquals(s, "0", d.symbolicAt?.let(::text))
+        }
+        // tan has a pole at π/2 even though the double cos(π/2) is not quite 0.
+        assertEquals(null, at("tan(X)", "{frac:π|2}").symbolicAt)
+        // Defined but out of range: the formula stays, with no value.
+        val big = at("e{pow:X{pow:2}}", "30")
+        assertNotNull(big.symbolicAt)
+        assertEquals(null, big.valueAt)
+    }
+
+    @Test fun quadraticTableWithLettersHasNoRootsOfNegatives() {
+        for (s in listOf("{frac:1|X{pow:2}-A{pow:2}}", "{frac:1|A-X{pow:2}}", "{frac:1|AX{pow:2}-1}")) {
+            val sol = Calculus.integral(row(s), null, null, memory, settings)
+            val anti = sol.antiderivative ?: continue
+            assertTrue("$s: ${text(anti)}", sol.verified)
+            assertTrue("$s: ${text(anti)}", "√(−" !in text(anti) && "√(-" !in text(anti))
+        }
+    }
+
+    @Test fun answersDefinedOnlyFurtherOutAreChecked() {
+        for (s in listOf("{sqrt:X-5}", "ln(X-4)", "{frac:1|{sqrt:X{pow:2}-9}}")) {
+            val sol = Calculus.integral(row(s), null, null, memory, settings)
+            assertNotNull(s, sol.antiderivative)
+            assertTrue(s, sol.verified)
+        }
+    }
+
+    @Test fun zeroOverZeroIsAnError() {
+        for (s in listOf("{frac:0|0}", "{frac:X-X|X-X}", "0/0")) {
+            val failed = runCatching { Calculus.integral(row(s), row("0"), row("1"), memory, settings) }.exceptionOrNull()
+            assertTrue(s, failed is CalcException)
+        }
+    }
 }

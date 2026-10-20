@@ -1,6 +1,8 @@
 package com.l0gic0l.casiocalc.math.cas
 
+import com.l0gic0l.casiocalc.math.CalcException
 import com.l0gic0l.casiocalc.math.Calculator
+import com.l0gic0l.casiocalc.math.ErrorKind
 import com.l0gic0l.casiocalc.math.mathError
 import com.l0gic0l.casiocalc.math.editor.MathRow
 import com.l0gic0l.casiocalc.math.eval.AngleUnit
@@ -51,10 +53,12 @@ class Definite(
         EXACT,
         /** F(b) − F(a) does not apply (F jumps), or no antiderivative was found; numerical integration converged. */
         NUMERIC,
-        /** Letters other than X leave only the symbolic F(b) − F(a). */
+        /** Letters other than X, or X in a limit, leave only the symbolic F(b) − F(a). */
         PARAMETERS,
         /** F blows up inside or at the end of [a, b] and numerical integration does not converge. */
         DIVERGES,
+        /** F(b) − F(a) is 10¹⁰⁰ or more, out of the calculator's range. */
+        TOO_LARGE,
         /** No antiderivative and numerical integration did not converge. */
         UNKNOWN,
     }
@@ -81,14 +85,37 @@ object Calculus {
             current = value
         }
         val point = at?.takeIf { !it.isEmpty }?.let { parse(it) }
-        val symbolicAt = point?.let { p -> tidy(current.subst(Sym.Var(X), p)) }?.takeIf { s ->
-            // Simplifying can hide a division by zero (x/|x| at 0 folds 0·0⁻¹ to 0), so check the value too.
-            val free = point.otherVariables(X).isEmpty() && current.otherVariables(X).isEmpty()
-            !free || current.eval(X, point.eval(X, 0.0)).isFinite() && s.eval(X, 0.0).isFinite()
+        var symbolicAt = point?.let { p -> tidy(current.subst(Sym.Var(X), p)) }
+        var valueAt: Value? = null
+        // Letters other than X, and X itself in the point (f′ at X + 1), stay symbolic as in the
+        // steps rather than taking stored values.
+        val numeric = point != null && !point.dependsOn(X) && point.otherVariables(X).isEmpty() && current.otherVariables(X).isEmpty()
+        if (numeric && symbolicAt != null) {
+            val value = exactResult(symbolicAt, memory, settings)
+            val failure = value.exceptionOrNull()
+            val defined = when {
+                // Too large to show, as e^(X²) at 30, but defined.
+                failure.isOverflow() -> true
+                // tan(π/2): the double cos(π/2) is not quite 0, so only the exact value notices.
+                failure != null -> false
+                else -> definedAt(current, point.eval(X, 0.0), symbolicAt.eval(X, 0.0))
+            }
+            if (defined) valueAt = value.getOrNull() else symbolicAt = null
         }
-        // Letters other than X stay symbolic, as in the steps, rather than taking stored values.
-        val valueAt = symbolicAt?.takeIf { it.otherVariables(X).isEmpty() }?.let { exact(it, memory, settings) }
         return DerivativeSolution(f, current, order, steps, point, symbolicAt, valueAt)
+    }
+
+    /**
+     * Whether the derivative [d] has the value [s] at [x]. Simplifying can hide a division by zero
+     * (x/|x| at 0 folds 0·0⁻¹ to 0), so where d itself is not finite at x, the value counts only if
+     * d tends to it from both sides, as the rule-made 2x²/|x| does for x·|x| at 0.
+     */
+    private fun definedAt(d: Sym, x: Double, s: Double): Boolean {
+        if (!s.isFinite()) return false
+        if (d.eval(X, x).isFinite()) return true
+        val h = 1e-7 * maxOf(1.0, Math.abs(x))
+        val tolerance = 1e-4 * maxOf(1.0, Math.abs(s))
+        return listOf(d.eval(X, x - h), d.eval(X, x + h)).all { it.isFinite() && Math.abs(it - s) <= tolerance }
     }
 
     fun integral(integrand: MathRow, lower: MathRow?, upper: MathRow?, memory: Memory, settings: Settings, cancelled: () -> Boolean = { false }): IntegralSolution {
@@ -104,57 +131,86 @@ object Calculus {
 
     private fun definite(f: Sym, anti: Sym?, a: Sym, b: Sym, memory: Memory, settings: Settings): Definite {
         val symbolic = anti?.let { tidy(sub(it.subst(Sym.Var(X), b), it.subst(Sym.Var(X), a))) }
-        val hasParams = f.otherVariables(X).isNotEmpty() || a.otherVariables(X).isNotEmpty() || b.otherVariables(X).isNotEmpty()
+        // Other letters, or X in a limit (∫ from 1 to X), leave the answer as a formula.
+        val hasParams = f.otherVariables(X).isNotEmpty() || listOf(a, b).any { it.dependsOn(X) || it.otherVariables(X).isNotEmpty() }
         if (hasParams) return Definite(a, b, symbolic, null, null, Definite.Status.PARAMETERS)
         val lo = a.eval(X, 0.0)
         val hi = b.eval(X, 0.0)
         if (!lo.isFinite() || !hi.isFinite()) return Definite(a, b, symbolic, null, null, Definite.Status.UNKNOWN)
         val (numeric, converged) = Numeric.integrateEstimate({ t -> f.eval(X, t) }, lo, hi)
         val found = converged && numeric.isFinite()
-        val value = symbolic?.let { exact(it, memory, settings) }
+        val result = symbolic?.let { exactResult(it, memory, settings) }
+        val value = result?.getOrNull()
         val exactDouble = (value as? Value.Num)?.z?.takeIf { it.isReal }?.re?.toDouble()
         val agrees = found && exactDouble != null && Math.abs(numeric - exactDouble) <= 1e-6 * maxOf(1.0, Math.abs(numeric))
+        val continuous by lazy { anti != null && continuous(anti, lo, hi) }
         return when {
             agrees -> Definite(a, b, symbolic, value, null, Definite.Status.EXACT, checked = true)
+            result?.exceptionOrNull().isOverflow() -> Definite(a, b, symbolic, null, null, Definite.Status.TOO_LARGE)
             // FTC: with F continuous on [a, b], F(b) − F(a) is right even where quadrature struggles.
-            anti != null && exactDouble != null && continuous(anti, lo, hi) -> Definite(a, b, symbolic, value, null, Definite.Status.EXACT)
+            // F(b) − F(a) worked out in doubles must match the exact one: simplifying F(b) can
+            // cancel a ln 0 against another, as for ln(4 − x²) at 2.
+            exactDouble != null && continuous && matches(anti!!, lo, hi, exactDouble) ->
+                Definite(a, b, symbolic, value, null, Definite.Status.EXACT)
             found -> Definite(a, b, symbolic, null, numeric, Definite.Status.NUMERIC)
-            anti != null -> Definite(a, b, symbolic, null, null, Definite.Status.DIVERGES)
+            anti != null && !continuous -> Definite(a, b, symbolic, null, null, Definite.Status.DIVERGES)
             else -> Definite(a, b, null, null, null, Definite.Status.UNKNOWN)
         }
     }
 
+    private fun matches(F: Sym, lo: Double, hi: Double, exact: Double): Boolean {
+        val upper = F.eval(X, hi)
+        val lower = F.eval(X, lo)
+        return Math.abs(upper - lower - exact) <= 1e-6 * maxOf(1.0, Math.abs(upper), Math.abs(lower))
+    }
+
     /**
-     * Whether [F] is continuous on the open interval (lo, hi), judged from samples: between
-     * neighbouring points a continuous F changes less and less as they get closer, while across a
-     * pole, a logarithmic singularity or a jump it does not. Two pairs of grids allow for F that
-     * oscillates quickly.
+     * Whether [F] is continuous on [lo, hi], judged from samples. F must be finite at the ends and
+     * at 4096 points between them. Then the biggest steps between neighbouring samples, and the
+     * samples largest in size, are looked at more closely: a window round each is cut down, again
+     * and again, to the three twelfths with the biggest step. For a continuous F the step shrinks
+     * with the window. Across a pole, a logarithmic singularity or a jump it does not, however the
+     * samples happen to fall, and F that oscillates faster than the grid is followed down until it
+     * is smooth.
      */
-    private fun continuous(F: Sym, lo: Double, hi: Double): Boolean {
-        fun largestStep(n: Int): Double? {
-            var previous = 0.0
-            var largest = 0.0
-            for (k in 0 until n) {
-                val v = F.eval(X, lo + (k + 0.5) * (hi - lo) / n)
-                if (!v.isFinite()) return null
-                if (k > 0) largest = maxOf(largest, Math.abs(v - previous))
-                previous = v
+    private fun continuous(F: Sym, from: Double, to: Double): Boolean {
+        val lo = minOf(from, to)
+        val hi = maxOf(from, to)
+        val n = 4096
+        val xs = DoubleArray(n + 2) { k -> if (k == 0) lo else if (k == n + 1) hi else lo + (k - 0.5) * (hi - lo) / n }
+        val values = DoubleArray(n + 2) { F.eval(X, xs[it]) }
+        if (values.any { !it.isFinite() }) return false
+        val size = values.maxOf { Math.abs(it) }
+        val steps = (0 until n + 1).sortedByDescending { Math.abs(values[it + 1] - values[it]) }.take(16)
+        val largest = values.indices.sortedByDescending { Math.abs(values[it]) }.take(4).map { minOf(it, n) }
+        val tiny = 1e-13 * maxOf(1.0, Math.abs(lo), Math.abs(hi))
+        for (spot in (steps + largest).distinct()) {
+            var a = xs[maxOf(spot - 1, 0)]
+            var b = xs[minOf(spot + 2, n + 1)]
+            var first = -1.0
+            var last = 0.0
+            while (b - a > tiny) {
+                val px = DoubleArray(12) { a + (b - a) * it / 11 }
+                val pv = DoubleArray(12) { F.eval(X, px[it]) }
+                if (pv.any { !it.isFinite() }) return false
+                val j = (0 until 11).maxByOrNull { Math.abs(pv[it + 1] - pv[it]) }!!
+                last = Math.abs(pv[j + 1] - pv[j])
+                if (first < 0) first = last
+                a = px[maxOf(j - 1, 0)]
+                b = px[minOf(j + 2, 11)]
             }
-            return largest
+            if (last > 0.01 * first && last > 1e-12 * maxOf(1.0, size)) return false
         }
-        for ((coarse, fine) in listOf(2048 to 16384, 16384 to 131072)) {
-            val c = largestStep(coarse) ?: return false
-            val d = largestStep(fine) ?: return false
-            if (c < 1e-12 || d < c * 0.6) return true
-        }
-        return false
+        return true
     }
 
     /** Exact value of a constant expression with the normal evaluator, in radians. */
-    private fun exact(s: Sym, memory: Memory, settings: Settings): Value? = runCatching {
+    private fun exactResult(s: Sym, memory: Memory, settings: Settings): Result<Value> = runCatching {
         val expr = s.toExpr()
         Calculator.evaluator(expr, memory, settings.copy(angle = AngleUnit.RAD)).eval(expr)
-    }.getOrNull()
+    }
+
+    private fun Throwable?.isOverflow() = this is CalcException && kind == ErrorKind.MATH && detail == "overflow"
 
     private fun ordinal(k: Int) = when (k) {
         1 -> "First"
