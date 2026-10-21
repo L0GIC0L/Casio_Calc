@@ -1,0 +1,22 @@
+Classy Calc is a graphing calculator built around natural display: you type fractions, roots, powers and integrals the way they are written in a textbook, and answers come back the same way, as exact fractions, surds and multiples of π, with a key to switch to decimals.
+
+<b>Modes</b>
+<ul>
+<li><b>Run-Matrix</b>: natural-display input with templates for fractions, mixed fractions, √, ˣ√, powers, logₐb, |x|, ∫, d/dx, Σ, Π and matrices. Exact results (sin 60° = √3/2, √8 = 2√2), tap-to-edit history, Ans, variables A–Z, matrices, lists, complex numbers and a live preview of simple calculations as you type.</li>
+<li><b>Graph</b> and <b>Table</b>: ten functions of type Y=, r=, parametric and X=, pinch to zoom each axis separately, trace, zoom presets, roots, maxima, minima, intersections and shaded integrals.</li>
+<li><b>Statistics</b>: list editor, 1- and 2-variable statistics, seven regressions, scatter, line, histogram and box plots.</li>
+<li><b>Equation</b>: simultaneous equations with up to 6 unknowns, polynomials up to degree 6 with exact and complex roots, and a solver for any equation.</li>
+<li><b>Matrix</b>, <b>Recursion</b> and <b>Base-N</b>.</li>
+<li><b>Integral</b>: step-by-step antiderivatives (substitution, partial fractions, integration by parts, trigonometric identities and more), each checked by differentiating it. Definite integrals give the exact value when it applies and say so when an integral does not converge.</li>
+<li><b>Derivative</b>: first to third derivatives with the rule used at each step, and the exact value at a point.</li>
+</ul>
+
+<b>Made for phones</b>
+<ul>
+<li>Material 3 with dynamic colour, a themed launcher icon, light and dark themes and six accent colours.</li>
+<li>Layouts for phones, landscape, foldables and tablets.</li>
+<li>Adjustable keypad height, key shape, spacing and label size, haptics and key clicks.</li>
+<li>Answers are read out by TalkBack.</li>
+</ul>
+
+No ads, no tracking and no internet permission. Everything is worked out on the device.
