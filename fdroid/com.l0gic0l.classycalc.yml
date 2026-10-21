@@ -2,13 +2,13 @@ Categories:
   - Science & Education
 License: MIT
 AuthorName: Nate Miller
-SourceCode: https://github.com/L0GIC0L/Casio_Calc
-IssueTracker: https://github.com/L0GIC0L/Casio_Calc/issues
+SourceCode: https://github.com/L0GIC0L/Classy_Calc
+IssueTracker: https://github.com/L0GIC0L/Classy_Calc/issues
 
 AutoName: Classy Calc
 
 RepoType: git
-Repo: https://github.com/L0GIC0L/Casio_Calc.git
+Repo: https://github.com/L0GIC0L/Classy_Calc.git
 
 Builds:
   - versionName: 1.0.0
