@@ -10,11 +10,11 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.l0gic0l.casiocalc"
+        applicationId = "com.l0gic0l.classycalc"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
     }
 
     buildTypes {
@@ -22,9 +22,15 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signed with the debug key so the release APK installs without extra setup.
-            signingConfig = signingConfigs.getByName("debug")
+            // Unsigned by default: F-Droid signs the builds it publishes. -PdebugSigned signs with the
+            // debug key instead, for an APK that installs straight away (CI and testing).
+            if (providers.gradleProperty("debugSigned").isPresent) signingConfig = signingConfigs.getByName("debug")
         }
+    }
+    // The dependency list AGP would add is encrypted for Google Play; F-Droid rejects the blob.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

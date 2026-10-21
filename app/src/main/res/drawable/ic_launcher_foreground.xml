@@ -1,31 +1,73 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- A stacked fraction "2 over 3", the app's signature natural display. -->
+<!-- A calculator: a natural display screen with a graph and a root, over pill keys. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- numerator 2 -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M45,34 C45,27 63,27 63,34 C63,40 45,46 45,51 L63,51" />
-    <!-- fraction bar -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFD54F"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M38,57 L70,57" />
-    <!-- denominator 3 -->
-    <path
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M46,63 L62,63 L53,71 C60,71 63,74 63,77 C63,83 47,84 45,78" />
+    <!-- Scaled so every corner stays inside the 66 dp circle that no launcher mask clips. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.94"
+        android:scaleY="0.94">
+        <!-- screen -->
+        <path
+            android:fillColor="#DAE2FF"
+            android:pathData="M36,27 H72 A8,8 0 0 1 80,35 V51 A8,8 0 0 1 72,59 H36 A8,8 0 0 1 28,51 V35 A8,8 0 0 1 36,27 Z" />
+        <!-- axes -->
+        <path
+            android:strokeColor="#1F3B73"
+            android:strokeAlpha="0.35"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:pathData="M31,43 H77" />
+        <path
+            android:strokeColor="#1F3B73"
+            android:strokeAlpha="0.45"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:pathData="M54,30 V56" />
+        <!-- sine graph, with a point on it -->
+        <path
+            android:strokeColor="#3A5BA9"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M31,51 C39,51 44,33 53,33 C62,33 66,53 74,53 C75.5,53 76.5,51 77,49.5" />
+        <path
+            android:fillColor="#8B5000"
+            android:pathData="M50.2,33 a2.8,2.8 0 1 0 5.6,0 a2.8,2.8 0 1 0 -5.6,0 Z" />
+        <!-- square root -->
+        <path
+            android:strokeColor="#001946"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M32,34.5 L33.8,34.5 L36,38.5 L38.8,30.5 L45,30.5" />
+        <!-- keys -->
+        <path
+            android:fillColor="#B1C5FF"
+            android:pathData="M32,63 H39 A4,4 0 0 1 39,71 H32 A4,4 0 0 1 32,63 Z" />
+        <path
+            android:fillColor="#B1C5FF"
+            android:pathData="M50.5,63 H57.5 A4,4 0 0 1 57.5,71 H50.5 A4,4 0 0 1 50.5,63 Z" />
+        <path
+            android:fillColor="#DAE2FF"
+            android:pathData="M69,63 H76 A4,4 0 0 1 76,71 H69 A4,4 0 0 1 69,63 Z" />
+        <path
+            android:fillColor="#8FA8E6"
+            android:pathData="M36,74 H41 A4,4 0 0 1 41,82 H36 A4,4 0 0 1 36,74 Z" />
+        <path
+            android:fillColor="#8FA8E6"
+            android:pathData="M51.5,74 H56.5 A4,4 0 0 1 56.5,82 H51.5 A4,4 0 0 1 51.5,74 Z" />
+        <!-- the = key -->
+        <path
+            android:fillColor="#FFB870"
+            android:pathData="M67,74 H72 A4,4 0 0 1 72,82 H67 A4,4 0 0 1 67,74 Z" />
+        <path
+            android:strokeColor="#4A2800"
+            android:strokeWidth="1.1"
+            android:strokeLineCap="round"
+            android:pathData="M66.6,76.9 H72.4 M66.6,79.1 H72.4" />
+    </group>
 </vector>

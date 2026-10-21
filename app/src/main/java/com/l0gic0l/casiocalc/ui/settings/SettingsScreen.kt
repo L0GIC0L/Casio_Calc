@@ -214,7 +214,7 @@ fun SettingsScreen(vm: CalcViewModel, onBack: () -> Unit) {
                             @Suppress("DEPRECATION")
                             runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "?"
                         }
-                        InfoItem("CG Calc $version", "A natural display graphing calculator modelled on the Casio fx-CG50", Icons.Default.Info)
+                        InfoItem("Classy Calc $version", "A natural display graphing calculator modelled on the Casio fx-CG50", Icons.Default.Info)
                     }
                     item { InfoItem("Tips", "Tap a mode chip on the Run-Matrix screen to change it. Pinch a graph sideways or up and down to zoom one axis.", Icons.Default.TouchApp) }
                 }
