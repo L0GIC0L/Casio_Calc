@@ -66,22 +66,23 @@ continues from Ans, ▲ recalls earlier calculations, and ◀ or ▶ reopens the
 
 ## Install
 
-Every push builds the APKs in GitHub Actions (**Actions → Build APK → Artifacts**):
+Every push builds the APKs in GitHub Actions (**Actions → Build APK → Artifacts**, `classy-calc-apk`):
 
-- `app-release.apk` — optimised (1.8 MB). It is signed with the standard debug key so it installs
-  directly; sign it with your own key before publishing it anywhere.
+- `app-release.apk` — optimised (1.9 MB), signed with the standard debug key so it installs directly.
 - `app-debug.apk` — unoptimised build for development.
 
 Copy the APK to the phone and open it (allow installs from that source when Android asks).
-Android 8.0 (API 26) or newer is required.
+Android 8.0 (API 26) or newer is required. On Android 13 and newer, turn on *Themed icons* in the
+wallpaper settings and the launcher icon takes the wallpaper's colours.
 
 ## Build
 
 Requires JDK 17+ and the Android SDK (platform 37). Then:
 
 ```
-./gradlew assembleRelease      # app/build/outputs/apk/release/app-release.apk
-./gradlew testDebugUnitTest    # engine, editor and UI tests
+./gradlew assembleRelease                # unsigned: app/build/outputs/apk/release/app-release-unsigned.apk
+./gradlew assembleRelease -PdebugSigned  # signed with the debug key, ready to install
+./gradlew testDebugUnitTest              # engine, editor and UI tests
 ```
 
 Screenshots in `app/src/test/screenshots` are produced by Robolectric/Roborazzi tests:
@@ -90,6 +91,23 @@ Screenshots in `app/src/test/screenshots` are produced by Robolectric/Roborazzi 
 The **Emulator QA** workflow installs the debug APK on an Android emulator and drives it with adb
 (`scripts/qa/emulator-qa.sh`): it solves integrals and derivatives, types one on the keypad, changes
 a keypad setting, and uploads screenshots, UI dumps and logs as the `android-qa-output` artifact.
+
+## Releasing to F-Droid
+
+The repository has what F-Droid builds from: the MIT licence, an unsigned release build without
+Google's encrypted dependency block, and the store listing in `fastlane/metadata/android/en-US`
+(title, descriptions, changelog per version code, icon and screenshots).
+
+1. Merge to `main`, then tag the release: `git tag v1.0.0 && git push origin v1.0.0`. The listing
+   and the version must already be in the tagged commit.
+2. Fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata) and, on a branch named after the app ID,
+   copy `fdroid/io.github.l0gic0l.classycalc.yml` to `metadata/`. Replace `commit: v1.0.0` with
+   the full hash from `git rev-parse v1.0.0^{commit}`, which F-Droid now asks for. Once the fork's
+   CI pipeline passes, open a merge request titled `New App: io.github.l0gic0l.classycalc`.
+3. For later versions, raise `versionCode` and `versionName` in `app/build.gradle.kts` (keep them
+   plain literals: F-Droid reads them without running Gradle), add
+   `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` and push a matching `vX.Y.Z` tag.
+   F-Droid picks up new tags by itself.
 
 ## How it works
 

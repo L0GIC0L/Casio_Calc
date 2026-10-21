@@ -263,7 +263,7 @@ private fun HistoryItem(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     fun copy(text: String) {
-        scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("CG Calc", text))) }
+        scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Classy Calc", text))) }
     }
     val result = remember(entry, entry.decimal, formatter) {
         val style = if (entry.decimal) Formatter.Style.DECIMAL else entry.style

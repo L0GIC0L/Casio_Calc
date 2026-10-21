@@ -1,0 +1,1 @@
+First release: Run-Matrix with natural display and a live preview, Graph, Table, Statistics, Equation, Matrix, Recursion and Base-N, plus step-by-step Integral and Derivative modes.

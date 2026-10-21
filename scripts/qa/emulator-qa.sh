@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Drives CG Calc on a running emulator with adb: opens the Integral and Derivative modes, solves
+# Drives Classy Calc on a running emulator with adb: opens the Integral and Derivative modes, solves
 # examples and typed problems, changes a keypad setting, and records screenshots, UI dumps and logs.
 # Usage: emulator-qa.sh <apk> <output dir>. Exits 1 if any step failed or the app crashed.
 set -u
 APK=$1
 OUT=$2
-PKG=com.l0gic0l.casiocalc
+PKG=io.github.l0gic0l.classycalc
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"
 FAILS=0
@@ -81,7 +81,7 @@ adb shell pm clear "$PKG" >/dev/null
 ACTIVITY=$(adb shell cmd package resolve-activity --brief "$PKG" | tail -n 1 | tr -d '\r')
 log "launch $ACTIVITY"
 adb shell am start -W -n "$ACTIVITY" >/dev/null
-expect "CG Calc" && shot 01-menu
+expect "Classy Calc" && shot 01-menu
 
 # Integral: a worked example, then the steps below it.
 tap "Integral"
@@ -115,7 +115,7 @@ expect "does not converge" --contains && shot 10b-integral-diverges
 back
 
 # Derivative: an example with a value at a point, then the second derivative.
-expect "CG Calc"
+expect "Classy Calc"
 tap "Derivative"
 expect "Differentiate" --contains
 tap "Value at a point"
@@ -127,7 +127,7 @@ expect "4cos(1)" --contains && shot 12-second-derivative
 back
 
 # Settings: pill-shaped keys, then the Run-Matrix keypad.
-expect "CG Calc"
+expect "Classy Calc"
 tap "Settings"
 # Scrolls down until $1 is on screen.
 scroll_to() {

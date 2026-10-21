@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon in one colour, for themed icons (Android 13+): the system tints it to match the wallpaper. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Scaled so every corner stays inside the 66 dp circle that no launcher mask clips. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.94"
+        android:scaleY="0.94">
+        <!-- screen, faint so the graph shows on it -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.3"
+            android:pathData="M36,27 H72 A8,8 0 0 1 80,35 V51 A8,8 0 0 1 72,59 H36 A8,8 0 0 1 28,51 V35 A8,8 0 0 1 36,27 Z" />
+        <!-- axes -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.5"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round"
+            android:pathData="M31,43 H77" />
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.6"
+            android:strokeWidth="1.5"
+            android:strokeLineCap="round"
+            android:pathData="M54,30 V56" />
+        <!-- sine graph, with a point on it -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="3"
+            android:strokeLineCap="round"
+            android:pathData="M31,51 C39,51 44,33 53,33 C62,33 66,53 74,53 C75.5,53 76.5,51 77,49.5" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M50.2,33 a2.8,2.8 0 1 0 5.6,0 a2.8,2.8 0 1 0 -5.6,0 Z" />
+        <!-- square root -->
+        <path
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="2"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:pathData="M32,34.5 L33.8,34.5 L36,38.5 L38.8,30.5 L45,30.5" />
+        <!-- keys: the right-hand ones, = among them, solid -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.85"
+            android:pathData="M32,63 H39 A4,4 0 0 1 39,71 H32 A4,4 0 0 1 32,63 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.85"
+            android:pathData="M50.5,63 H57.5 A4,4 0 0 1 57.5,71 H50.5 A4,4 0 0 1 50.5,63 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M69,63 H76 A4,4 0 0 1 76,71 H69 A4,4 0 0 1 69,63 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.65"
+            android:pathData="M36,74 H41 A4,4 0 0 1 41,82 H36 A4,4 0 0 1 36,74 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:fillAlpha="0.65"
+            android:pathData="M51.5,74 H56.5 A4,4 0 0 1 56.5,82 H51.5 A4,4 0 0 1 51.5,74 Z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M67,74 H72 A4,4 0 0 1 72,82 H67 A4,4 0 0 1 67,74 Z" />
+    </group>
+</vector>

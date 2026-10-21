@@ -1,0 +1,25 @@
+Categories:
+  - Calculator
+  - Science & Education
+License: MIT
+AuthorName: Nate Miller
+SourceCode: https://github.com/L0GIC0L/Classy_Calc
+IssueTracker: https://github.com/L0GIC0L/Classy_Calc/issues
+
+AutoName: Classy Calc
+
+RepoType: git
+Repo: https://github.com/L0GIC0L/Classy_Calc.git
+
+Builds:
+  - versionName: 1.0.0
+    versionCode: 1
+    commit: v1.0.0
+    subdir: app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 1.0.0
+CurrentVersionCode: 1

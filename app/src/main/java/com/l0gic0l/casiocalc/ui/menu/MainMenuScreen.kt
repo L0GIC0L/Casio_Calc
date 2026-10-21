@@ -122,7 +122,7 @@ fun MainMenuScreen(prefs: UiPrefs = UiPrefs(), status: String? = null, onOpen: (
             contentWindowInsets = WindowInsets.safeDrawing,
             topBar = {
                 TopAppBar(
-                    title = { Text("CG Calc", Modifier.graphicsLayer { alpha = titleAlpha }) },
+                    title = { Text("Classy Calc", Modifier.graphicsLayer { alpha = titleAlpha }) },
                     windowInsets = appBarInsets,
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = barColour, scrolledContainerColor = barColour),
                 )
@@ -156,7 +156,7 @@ private fun Header(status: String?, short: Boolean, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            "CG Calc",
+            "Classy Calc",
             style = if (short) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.displayMedium,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
