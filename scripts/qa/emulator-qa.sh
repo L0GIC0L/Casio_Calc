@@ -5,7 +5,7 @@
 set -u
 APK=$1
 OUT=$2
-PKG=com.l0gic0l.classycalc
+PKG=io.github.l0gic0l.classycalc
 HERE=$(cd "$(dirname "$0")" && pwd)
 mkdir -p "$OUT"
 FAILS=0

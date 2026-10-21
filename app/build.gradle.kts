@@ -10,7 +10,7 @@ android {
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.l0gic0l.classycalc"
+        applicationId = "io.github.l0gic0l.classycalc"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

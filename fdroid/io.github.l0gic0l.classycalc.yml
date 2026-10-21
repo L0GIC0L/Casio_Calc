@@ -1,4 +1,5 @@
 Categories:
+  - Calculator
   - Science & Education
 License: MIT
 AuthorName: Nate Miller
@@ -19,6 +20,6 @@ Builds:
       - yes
 
 AutoUpdateMode: Version
-UpdateCheckMode: Tags
+UpdateCheckMode: Tags ^v[0-9.]+$
 CurrentVersion: 1.0.0
 CurrentVersionCode: 1

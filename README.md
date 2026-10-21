@@ -98,10 +98,14 @@ The repository has what F-Droid builds from: the MIT licence, an unsigned releas
 Google's encrypted dependency block, and the store listing in `fastlane/metadata/android/en-US`
 (title, descriptions, changelog per version code, icon and screenshots).
 
-1. Merge to `main`, then tag the release: `git tag v1.0.0 && git push origin v1.0.0`.
-2. Fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata), copy `fdroid/com.l0gic0l.classycalc.yml`
-   to `metadata/` and open a merge request. F-Droid's bot builds it and reviewers follow up there.
-3. For later versions, raise `versionCode` and `versionName` in `app/build.gradle.kts`, add
+1. Merge to `main`, then tag the release: `git tag v1.0.0 && git push origin v1.0.0`. The listing
+   and the version must already be in the tagged commit.
+2. Fork [fdroiddata](https://gitlab.com/fdroid/fdroiddata) and, on a branch named after the app ID,
+   copy `fdroid/io.github.l0gic0l.classycalc.yml` to `metadata/`. Replace `commit: v1.0.0` with
+   the full hash from `git rev-parse v1.0.0^{commit}`, which F-Droid now asks for. Once the fork's
+   CI pipeline passes, open a merge request titled `New App: io.github.l0gic0l.classycalc`.
+3. For later versions, raise `versionCode` and `versionName` in `app/build.gradle.kts` (keep them
+   plain literals: F-Droid reads them without running Gradle), add
    `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` and push a matching `vX.Y.Z` tag.
    F-Droid picks up new tags by itself.
 
